@@ -11,6 +11,8 @@
 #include <termios.h>
 #include <unistd.h>
 
+
+
 // Baudrate settings are defined in <asm/termbits.h>, which is
 // included by <termios.h>
 #define BAUDRATE B38400
@@ -22,6 +24,22 @@
 #define BUF_SIZE 5
 
 volatile int STOP = FALSE;
+
+
+// ALARM
+int alarmEnabled = FALSE;
+int alarmCount = 0;
+
+// Alarm function handler
+void alarmHandler(int signal)
+{
+    alarmEnabled = FALSE;
+    alarmCount++;
+
+    printf("Alarm #%d\n", alarmCount);
+}
+
+
 
 int main(int argc, char *argv[])
 {
@@ -88,7 +106,8 @@ int main(int argc, char *argv[])
     }
 
     printf("New termios structure set\n");
-
+    
+    (void)signal(SIGALRM, alarmHandler); //Allow alarm handler
     // Create string to send
     unsigned char buf[BUF_SIZE] = {0};
 
@@ -102,10 +121,7 @@ int main(int argc, char *argv[])
     buf[3] = BCC;
     buf[4] = flag;
 
-    // In non-canonical mode, '\n' does not end the writing.
-    // Test this condition by placing a '\n' in the middle of the buffer.
-    // The whole buffer must be sent even with the '\n'.
-    // buf[5] = '\n';
+
 
     int bytes = write(fd, buf, BUF_SIZE);
     printf("%d bytes written\n", bytes);
@@ -113,7 +129,14 @@ int main(int argc, char *argv[])
     // Wait until all bytes have been written to the serial port
     sleep(1);
 
-
+    while (alarmCount < 4)
+    {
+        if (alarmEnabled == FALSE)
+        {
+            alarm(3); // Set alarm to be triggered in 3s
+            alarmEnabled = TRUE;
+        }
+    }
 
     // Loop for UA
     printf("UA bytes\n");
@@ -136,7 +159,6 @@ int main(int argc, char *argv[])
         }
     }
     // Wait until all bytes have been written to the serial port
-    sleep(1);
 
 
     // Restore the old port settings
