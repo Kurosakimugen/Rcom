@@ -97,41 +97,51 @@ int main(int argc, char *argv[])
         int bytes = read(fd, buf, BUF_SIZE);
         buf[bytes] = '\0'; // Set end of string to '\0', so we can printf
 
-
-        if (buf[0] == 0x7E){ //TODO isto está certo?
+        //State Machine
+        if (buf[0] != 0x7E){
             STOP = TRUE;
-        }else{
-            printf("Tenso: %X",buf[0]);
+        }
+        if (buf[1] != 0x03){
+            STOP = TRUE;
+        }
+        if (buf[2] != 0x03){
+            STOP = TRUE;
+        }
+        if (buf[3] != (0x03 ^ 0x03)){
+            STOP = TRUE;
+        }
+        if (buf[4] != 0x7E){
+            STOP = TRUE;
         }
 
+        if (STOP == TRUE) {
+            break;
+        }
 
-        //printf(":%s:%d\n", buf, bytes);
         printf("SET bytes\n");
         for (int i = 0; i < bytes; i++)
         {
             printf("buf = 0x%02X\n", buf[i]);
         }
+        
+        // Create UA to send
+        memset(&buf, 0, sizeof(BUF_SIZE + 1));
+
+        unsigned int flag = 0x7E;
+        unsigned int A    = 0x01;
+        unsigned int C    = 0x07;
+        unsigned int BCC  = A ^ C;
+        buf[0] = flag;
+        buf[1] = A;
+        buf[2] = C;
+        buf[3] = BCC;
+        buf[4] = flag;
+
+        int bytes = write(fd, buf, BUF_SIZE);
+
+        printf("%d bytes written\n", bytes);
     }
 
-
-
-    // Create UA to send
-    memset(&buf, 0, sizeof(BUF_SIZE + 1));
-
-    unsigned int flag = 0x7E;
-    unsigned int A    = 0x01;
-    unsigned int C    = 0x07;
-    unsigned int BCC  = A ^ C;
-    buf[0] = flag;
-    buf[1] = A;
-    buf[2] = C;
-    buf[3] = BCC;
-    buf[4] = flag;
-
-    int bytes = write(fd, buf, BUF_SIZE);
-    sleep(1);
-
-    printf("%d bytes written\n", bytes);
 
     // The while() cycle should be changed in order to respect the specifications
     // of the protocol indicated in the Lab guide
