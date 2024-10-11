@@ -99,22 +99,24 @@ int main(int argc, char *argv[])
 
         //State Machine
         if (buf[0] != 0x7E){
+            printf("%x",buf[0]);
             STOP = TRUE;
-        }
-        if (buf[1] != 0x03){
+        }else if (buf[1] != 0x03){
             STOP = TRUE;
-        }
-        if (buf[2] != 0x03){
+            printf("2");
+        }else if (buf[2] != 0x03){
             STOP = TRUE;
-        }
-        if (buf[3] != (0x03 ^ 0x03)){
+            printf("3");
+        }else if (buf[3] != (buf[1] ^ buf[2])){
             STOP = TRUE;
-        }
-        if (buf[4] != 0x7E){
+            printf("4");
+        }else if (buf[4] != 0x7E){
             STOP = TRUE;
+            printf("5");
         }
 
         if (STOP == TRUE) {
+            printf("something very went wrong invalid SET message\n\n");
             break;
         }
 
@@ -123,7 +125,8 @@ int main(int argc, char *argv[])
         {
             printf("buf = 0x%02X\n", buf[i]);
         }
-        
+        sleep(30);
+
         // Create UA to send
         memset(&buf, 0, sizeof(BUF_SIZE + 1));
 
@@ -137,14 +140,12 @@ int main(int argc, char *argv[])
         buf[3] = BCC;
         buf[4] = flag;
 
-        int bytes = write(fd, buf, BUF_SIZE);
+        bytes = write(fd, buf, BUF_SIZE);
+        STOP = TRUE; //TODO why use while loop
 
         printf("%d bytes written\n", bytes);
+        
     }
-
-
-    // The while() cycle should be changed in order to respect the specifications
-    // of the protocol indicated in the Lab guide
 
     // Restore the old port settings
     if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
