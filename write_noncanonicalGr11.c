@@ -8,6 +8,7 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <signal.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -40,9 +41,9 @@ void alarmHandler(int signal)
 }
 
 
-
 int main(int argc, char *argv[])
 {
+    
     // Program usage: Uses either COM1 or COM2
     const char *serialPortName = argv[1];
 
@@ -85,8 +86,8 @@ int main(int argc, char *argv[])
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
+    newtio.c_cc[VTIME] = 30; 
+    newtio.c_cc[VMIN] = 0; 
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -107,6 +108,10 @@ int main(int argc, char *argv[])
 
     printf("New termios structure set\n");
     
+    //Ready response
+    unsigned char UA[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
+    STOP = FALSE;
+
     (void)signal(SIGALRM, alarmHandler); //Allow alarm handler
     // Create string to send
     unsigned char buf[BUF_SIZE] = {0};
@@ -121,44 +126,44 @@ int main(int argc, char *argv[])
     buf[3] = BCC;
     buf[4] = flag;
 
-
-
-    int bytes = write(fd, buf, BUF_SIZE);
-    printf("%d bytes written\n", bytes);
-
-    // Wait until all bytes have been written to the serial port
-    sleep(1);
+    int writeBytes = 0, readBytes = 0;
 
     while (alarmCount < 4)
     {
+        writeBytes = write(fd, buf, BUF_SIZE);
+        sleep(1);
         if (alarmEnabled == FALSE)
         {
             alarm(3); // Set alarm to be triggered in 3s
             alarmEnabled = TRUE;
+            readBytes = read(fd, UA, BUF_SIZE);
         }
+        if (readBytes == 5)
+            break;
     }
-
-    // Loop for UA
-    printf("UA bytes\n");
-    unsigned char UA[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
-    STOP = FALSE;
-    while (STOP == FALSE)
+    if (alarmCount >= 4)
     {
-        // Returns after 5 chars have been input
-        int bytes = read(fd, UA, BUF_SIZE);
-        UA[bytes] = '\0'; // Set end of string to '\0', so we can printf
+        printf("UA timeout, sorry :(\n");
+    }else{
+        alarm(0);
+        printf("%d bytes written\n", writeBytes);
+        printf("UA bytes\n");
 
-
-        if (UA[0] == flag)
-            STOP = TRUE;
-
-
-        for (int i = 0; i < bytes; i++)
+        // Loop for UA
+        while (STOP == FALSE)
         {
-            printf("buf = 0x%02X\n", UA[i]);
+            UA[readBytes] = '\0'; // Set end of string to '\0', so we can printf
+
+            if (UA[0] == flag)
+                STOP = TRUE;
+
+            for (int i = 0; i < readBytes; i++)
+            {
+                printf("buf = 0x%02X\n", UA[i]);
+            }
         }
+        // Wait until all bytes have been written to the serial port
     }
-    // Wait until all bytes have been written to the serial port
 
 
     // Restore the old port settings
