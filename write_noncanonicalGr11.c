@@ -22,7 +22,7 @@
 #define FALSE 0
 #define TRUE 1
 
-#define BUF_SIZE 5
+#define BUF_SIZE 256
 
 volatile int STOP = FALSE;
 
@@ -117,7 +117,7 @@ int main(int argc, char *argv[])
     unsigned char buf[BUF_SIZE] = {0};
 
     unsigned int flag = 0x7E;
-    unsigned int A    = 0x03;
+    unsigned int A    = 0x04;
     unsigned int C    = 0x03;
     unsigned int BCC  = A ^ C;
     buf[0] = flag;
@@ -134,7 +134,7 @@ int main(int argc, char *argv[])
         sleep(1);
         if (alarmEnabled == FALSE)
         {
-            alarm(3); // Set alarm to be triggered in 3s
+            alarm(1); // Set alarm to be triggered in 3s
             alarmEnabled = TRUE;
             readBytes = read(fd, UA, BUF_SIZE);
         }
