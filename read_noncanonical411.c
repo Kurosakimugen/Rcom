@@ -20,6 +20,7 @@
 #define TRUE 1
 
 #define BUF_SIZE 256
+#define SET_SIZE 5
 
 volatile int STOP = FALSE;
 
@@ -90,85 +91,89 @@ int main(int argc, char *argv[])
 
     // Loop for input
     unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
-
     int status = 0;
-    unsigned char buffRes[6];
-    int count = 0;
-
+    unsigned char buffRes[6] = {0};
     while (STOP == FALSE)
     {
+        // Returns after 5 chars have been input
         int bytes = read(fd, buf, 1);
-        printf("%d %d\n",bytes, count);
-        count++;
-        if(bytes == 0) {
-            break;
-        }
 
-        //State Machine  
-        switch(buf[0]) {
-        default:
-            status = 0;
-            break;
-        case 0x7E:
-            if (status == 0) {
-                status = 1;
-                buffRes[0] = 0x7E;
+        //State Machine
+        switch(buf[0])
+        {
+            default:
+                status = 0;
                 break;
+            case 0x7E:
+                if (status == 0)
+                {
+                    status = 1;
+                    buffRes[0] = 0x7E;
                 }
-            if (status == 4) {
-                buffRes[4] = 0x7E;
-                buffRes[5] = '\0';
-                STOP = TRUE;
+                else if (status == 4) 
+                {
+                    buffRes[4] = 0x7E;
+                    buffRes[5] = '\0';  // Set end of string to '\0', so we can printf
+                    STOP = TRUE;
+                }   
                 break;
-                }    
-        case 0x03:
-            if (status == 1) {
-                status = 2;
-                buffRes[1] = 0x03;
-                break;
-            }
-            else if (status == 2) {
-                status = 3;
-                buffRes[2] = 0x03;
-                break;
-            }
-            status = 0;
-            break;
-        case 0x03^0x03:
-            if (status == 3) {
-                status = 4;
-                buffRes[3] = 0x03^0x03;
-                break;
+            case 0x03:
+                if (status == 1)
+                {
+                    status = 2;
+                    buffRes[1] = 0x03;
+                    break;
+                } 
+                else if (status == 2) 
+                {
+                    status = 3;
+                    buffRes[2] = 0x03;
+                    break;
                 }
-            status = 0;
-            break;
-       }
+                status = 0;
+                break;
+            case 0x03^0x03:
+                if (status == 3) 
+                {
+                    status = 4;
+                    buffRes[3] = 0x03^0x03;
+                    break;
+                }
+                status = 0;
+                break;
+        }
     }
-    
-        if (STOP == FALSE) {
-            printf("Something very went wrong invalid SET message\n\n");
+
+    if (STOP == FALSE)
+    {
+        printf("something very went wrong invalid SET message\n\n");
+    }
+    else
+    {
+
+        printf("SET bytes\n");
+        for (int i = 0; i < SET_SIZE; i++)
+        {
+            printf("buf = 0x%02X\n", buffRes[i]);
         }
-        else{
-           for (int i = 0; i < 6; i++) {
-                printf("buf = 0x%02X\n", buffRes[i]);
-            }
 
-            // Create UA to send
-            memset(&buf, 0, sizeof(BUF_SIZE + 1));
+        // Create UA to send
+        memset(&buf, 0, sizeof(BUF_SIZE + 1));
 
-            unsigned int flag = 0x7E;
-            unsigned int A    = 0x01;
-            unsigned int C    = 0x07;
-            unsigned int BCC  = A ^ C;
-            buf[0] = flag;
-            buf[1] = A;
-            buf[2] = C;
-            buf[3] = BCC;
-            buf[4] = flag;
+        unsigned int flag = 0x7E;
+        unsigned int A    = 0x01;
+        unsigned int C    = 0x07; //TODO make wrong
+        unsigned int BCC  = A ^ C;
+        buf[0] = flag;
+        buf[1] = A;
+        buf[2] = C;
+        buf[3] = BCC;
+        buf[4] = flag;
 
-            int bytes = write(fd, buf, BUF_SIZE);
-            printf("%d bytes written\n", bytes);
-        }
+        int bytes = write(fd, buf, BUF_SIZE);
+
+        printf("%d bytes written\n", bytes);
+    }
 
     // Restore the old port settings
     if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
@@ -176,6 +181,7 @@ int main(int argc, char *argv[])
         perror("tcsetattr");
         exit(-1);
     }
+
     close(fd);
 
     return 0;
