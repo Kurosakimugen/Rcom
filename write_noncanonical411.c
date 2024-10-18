@@ -23,6 +23,8 @@
 #define TRUE 1
 
 #define BUF_SIZE 256
+#define UA_SIZE 5
+
 
 volatile int STOP = FALSE;
 
@@ -110,59 +112,102 @@ int main(int argc, char *argv[])
     
     //Ready response
     unsigned char UA[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
+    int status = 0;
     STOP = FALSE;
 
     (void)signal(SIGALRM, alarmHandler); //Allow alarm handler
     // Create string to send
-    unsigned char buf[BUF_SIZE] = {0};
+    unsigned char buf[BUF_SIZE] = {0};  //TODO try other positions in buf[]
+    unsigned char buffRes[6] = {0};
 
     unsigned int flag = 0x7E;
-    unsigned int A    = 0x04;
+    unsigned int A    = 0x03;
     unsigned int C    = 0x03;
     unsigned int BCC  = A ^ C;
-    buf[0] = flag;
-    buf[1] = A;
-    buf[2] = C;
-    buf[3] = BCC;
-    buf[4] = flag;
+    buf[21] = flag;
+    buf[22] = A;
+    buf[23] = C;
+    buf[24] = BCC;
+    buf[25] = flag;
 
     int writeBytes = 0, readBytes = 0;
 
-    while (alarmCount < 4)
+    while ((alarmCount < 4) && (STOP == FALSE))
     {
         writeBytes = write(fd, buf, BUF_SIZE);
-        sleep(1);
         if (alarmEnabled == FALSE)
         {
-            alarm(1); // Set alarm to be triggered in 3s
+            alarm(3); // Set alarm to be triggered in 3s
             alarmEnabled = TRUE;
-            readBytes = read(fd, UA, BUF_SIZE);
         }
-        if (readBytes == 5)
-            break;
+        while (STOP == FALSE)
+        {
+            int bytes = read(fd, UA, 1);
+            if (alarmEnabled == FALSE)
+            {
+                break;
+            }
+            switch(UA[0])
+            {
+                default:
+                    status = 0;
+                    break;
+                case 0x7E:
+                    if (status == 0)
+                    {
+                        status = 1;
+                        buffRes[0] = 0x7E;
+                    }
+                    else if (status == 4) 
+                    {
+                        buffRes[4] = 0x7E;
+                        buffRes[5] = '\0';  // Set end of string to '\0', so we can printf
+                        STOP = TRUE;
+                    }   
+                    break;
+                case 0x01:
+                    if (status == 1)
+                    {
+                        status = 2;
+                        buffRes[1] = 0x01;
+                        break;
+                    }
+                    status = 0;
+                    break;
+                case 0x07:
+                    if (status == 2) 
+                    {
+                        status = 3;
+                        buffRes[2] = 0x07;
+                        break;
+                    }
+                    status = 0;
+                    break;
+                case 0x01^0x07:
+                    if (status == 3) 
+                    {
+                        status = 4;
+                        buffRes[3] = 0x01^0x07;
+                        break;
+                    }
+                    status = 0;
+                    break;
+            }
+        }
     }
     if (alarmCount >= 4)
     {
         printf("UA timeout, sorry :(\n");
     }else{
+
+        alarmCount = 0;
         alarm(0);
         printf("%d bytes written\n", writeBytes);
         printf("UA bytes\n");
-
-        // Loop for UA
-        while (STOP == FALSE)
+        for (int i = 0; i < UA_SIZE; i++)
         {
-            UA[readBytes] = '\0'; // Set end of string to '\0', so we can printf
-
-            if (UA[0] == flag)
-                STOP = TRUE;
-
-            for (int i = 0; i < readBytes; i++)
-            {
-                printf("buf = 0x%02X\n", UA[i]);
-            }
+            printf("buf = 0x%02X\n", buffRes[i]);
         }
-        // Wait until all bytes have been written to the serial port
     }
 
 
