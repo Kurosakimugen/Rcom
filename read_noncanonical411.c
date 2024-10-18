@@ -174,14 +174,14 @@ int main(int argc, char *argv[])
 
         printf("%d bytes written\n", bytes);
     }
-
+    sleep(1);
     // Restore the old port settings
     if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
     {
         perror("tcsetattr");
         exit(-1);
     }
-
+    sleep(1);
     close(fd);
 
     return 0;
