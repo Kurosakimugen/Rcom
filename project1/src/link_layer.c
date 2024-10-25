@@ -43,7 +43,16 @@ int llopen(LinkLayer connectionParameters)
             alarmEnabled = FALSE;
             while (!alarmEnabled && STOP == FALSE)
             {
-                
+                int bytes = read (fd , pinguin, 1);
+                if (alarmEnabled == FALSE) 
+                {
+                    break;
+                }
+                switch ( pinguin [0] )
+                {
+                    default:
+                        status = 0
+                }
             }
         }
         
