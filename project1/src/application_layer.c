@@ -34,7 +34,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             exit(-1);
         }
     }
-    else if (linkLayer.role == LlTx)
+    else if (linkLayer.role == LlRx)
     {
 
     }
