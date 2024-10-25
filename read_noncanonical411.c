@@ -19,7 +19,8 @@
 #define FALSE 0
 #define TRUE 1
 
-#define BUF_SIZE 5
+#define BUF_SIZE 256
+#define SET_SIZE 5
 
 volatile int STOP = FALSE;
 
@@ -66,8 +67,8 @@ int main(int argc, char *argv[])
 
     // Set input mode (non-canonical, no echo,...)
     newtio.c_lflag = 0;
-    newtio.c_cc[VTIME] = 0; // Inter-character timer unused
-    newtio.c_cc[VMIN] = 5;  // Blocking read until 5 chars received
+    newtio.c_cc[VTIME] = 30; // Inter-character timer unused
+    newtio.c_cc[VMIN] = 0;  // Blocking read until 5 chars received
 
     // VTIME e VMIN should be changed in order to protect with a
     // timeout the reception of the following character(s)
@@ -90,58 +91,97 @@ int main(int argc, char *argv[])
 
     // Loop for input
     unsigned char buf[BUF_SIZE + 1] = {0}; // +1: Save space for the final '\0' char
-
+    int status = 0;
+    unsigned char buffRes[6] = {0};
     while (STOP == FALSE)
     {
         // Returns after 5 chars have been input
-        int bytes = read(fd, buf, BUF_SIZE);
-        buf[bytes] = '\0'; // Set end of string to '\0', so we can printf
+        int bytes = read(fd, buf, 1);
 
-
-        if (buf[0] == 0x7E){ //TODO isto está certo?
-            STOP = TRUE;
-        }else{
-            printf("Tenso: %X",buf[0]);
-        }
-
-
-        //printf(":%s:%d\n", buf, bytes);
-        printf("SET bytes\n");
-        for (int i = 0; i < bytes; i++)
+        //State Machine
+        switch(buf[0])
         {
-            printf("buf = 0x%02X\n", buf[i]);
+            default:
+                status = 0;
+                break;
+            case 0x7E:
+                if (status == 0)
+                {
+                    status = 1;
+                    buffRes[0] = 0x7E;
+                }
+                else if (status == 4) 
+                {
+                    buffRes[4] = 0x7E;
+                    buffRes[5] = '\0';  // Set end of string to '\0', so we can printf
+                    STOP = TRUE;
+                }   
+                break;
+            case 0x03:
+                if (status == 1)
+                {
+                    status = 2;
+                    buffRes[1] = 0x03;
+                    break;
+                } 
+                else if (status == 2) 
+                {
+                    status = 3;
+                    buffRes[2] = 0x03;
+                    break;
+                }
+                status = 0;
+                break;
+            case 0x03^0x03:
+                if (status == 3) 
+                {
+                    status = 4;
+                    buffRes[3] = 0x03^0x03;
+                    break;
+                }
+                status = 0;
+                break;
         }
     }
 
+    if (STOP == FALSE)
+    {
+        printf("something very went wrong invalid SET message\n\n");
+    }
+    else
+    {
 
+        printf("SET bytes\n");
+        for (int i = 0; i < SET_SIZE; i++)
+        {
+            printf("buf = 0x%02X\n", buffRes[i]);
+        }
 
-    // Create UA to send
-    memset(&buf, 0, sizeof(BUF_SIZE + 1));
+        // Create UA to send
+        memset(&buf, 0, sizeof(BUF_SIZE + 1));
 
-    unsigned int flag = 0x7E;
-    unsigned int A    = 0x01;
-    unsigned int C    = 0x07;
-    unsigned int BCC  = A ^ C;
-    buf[0] = flag;
-    buf[1] = A;
-    buf[2] = C;
-    buf[3] = BCC;
-    buf[4] = flag;
+        unsigned int flag = 0x7E;
+        unsigned int A    = 0x01;
+        unsigned int C    = 0x07; //TODO make wrong
+        unsigned int BCC  = A ^ C;
+        buf[0] = flag;
+        buf[1] = A;
+        buf[2] = C;
+        buf[3] = BCC;
+        buf[4] = flag;
 
-    int bytes = write(fd, buf, BUF_SIZE);
+        int bytes = write(fd, buf, BUF_SIZE);
 
-    printf("%d bytes written\n", bytes);
-
-    // The while() cycle should be changed in order to respect the specifications
-    // of the protocol indicated in the Lab guide
-
+        printf("%d bytes written\n", bytes);
+    }
+    sleep(1);
     // Restore the old port settings
     if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
     {
         perror("tcsetattr");
         exit(-1);
     }
-
+    sleep(1);
     close(fd);
 
     return 0;
