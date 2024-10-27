@@ -5,9 +5,14 @@
 
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
+
+int maxAttempts = 0;
 int alarmEnabled = FALSE;
 int alarmCount = 0;
-bool STOP = FALSE;
+int timeout = 0;
+LinkLayerRole role;
+unsigned char C_IFrame = 0x00;
+extern int fd;
 
 ////////////////////////////////////////////////
 // ALARM
@@ -26,48 +31,39 @@ void alarmHandler(int signal)
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
 {   
-    int fd = openSerialPort(connectionParameters.serialPort, connectionParameters.baudRate);
-    int attempts = 0;
+    fd = openSerialPort(connectionParameters.serialPort, connectionParameters.baudRate);
     if (fd < 0)
     {
         printf("\nProblem opening Serial Port\n");
         return -1;
     }
+    maxAttempts = connectionParameters.nRetransmissions;
+    timeout = connectionParameters.timeout;
+    int attempts = 0;
     
     if (connectionParameters.role == LlTx)
     {
+        bool stop = FALSE;
         (void) signal(SIGALRM, alarmHandler);
-        while (attempts < connectionParameters.nRetransmissions && STOP == FALSE)
+        while (attempts < maxAttempts && stop == FALSE)
         {
-            alarm(connectionParameters.timeout);
-            alarmEnabled = FALSE;
-            while (!alarmEnabled && STOP == FALSE)
-            {
-                int bytes = read (fd , pinguin, 1);
-                if (alarmEnabled == FALSE) 
-                {
-                    break;
-                }
-                switch ( pinguin [0] )
-                {
-                    default:
-                        status = 0
-                }
-            }
+            sendSFrame(fd,A_T,C_SET);
+            alarm(timeout);
+            stop = checkUFrame(fd,A_R,C_UA);    
+            attempts++;
         }
-        
-
+        if (stop == FALSE)
+            return -1;
     }
     else if (connectionParameters.role == LlRx)
     {
-
-    }else{
+        alarmEnabled = FALSE;
+        checkSFrame(fd,A_T,C_SET);
+    }
+    else
+    {
         return -1;
     }
-    
-
-    // TODO
-
     return 1;
 }
 
@@ -76,7 +72,25 @@ int llopen(LinkLayer connectionParameters)
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
 {
-    // TODO
+    unsigned char* frame = (unsigned char*) malloc(bufSize);
+    int frameSize = mountFrame(buf,bufSize,frame);
+
+    int attempts = 0;
+    frameAcknowledgment acknowledgment = UNKNOWN;
+    
+    while (attempts < maxAttempts)
+    {
+        acknowledgment = UNKNOWN;
+        alarmEnabled = FALSE;
+        alarm(timeout);
+        while (alarmEnabled == FALSE && acknowledgment == UNKNOWN)
+        {
+            write(fd,frame,frameSize);
+        }
+    }
+
+    
+    
 
     return 0;
 }
@@ -94,10 +108,159 @@ int llread(unsigned char *packet)
 ////////////////////////////////////////////////
 // LLCLOSE
 ////////////////////////////////////////////////
-int llclose(int showStatistics)
+int llclose(int showStatistics)     //TODO show Statistics
 {
-    // TODO
+    bool stop = FALSE;
+    int attempts = 0;
+    (void) signal(SIGALRM, alarmHandler);
+    
+    while (attempts < maxAttempts && stop == FALSE)
+    {
+        sendSFrame(fd,A_T,DISC);
+        alarm(timeout);
+        stop = checkUFrame(fd, A_R, DISC);
 
-    int clstat = closeSerialPort();
-    return clstat;
+        attempts++;
+    }
+
+    if (stop == FALSE)
+    {
+        printf("Didn't receive Receive confirmation DISC");
+        return -1;
+    }
+
+    sendUFrame(showStatistics,A_T,C_UA);
+
+    return closeSerialPort();
+}
+
+
+
+int sendSFrame(int fd, unsigned char A, unsigned char C)
+{
+    unsigned char set[5] = {FLAG, A, C, (A ^ C), FLAG};
+    int res = write(fd,set,5);
+    sleep(1);
+    return res;
+}
+int sendUFrame(int fd, unsigned char A, unsigned char C)
+{
+    return sendSFrame(fd,A,C);
+}
+
+
+
+bool checkSFrame(int fd, unsigned char A, unsigned char C)
+{
+    DLState status = START;
+    unsigned char read_byte = 0;
+    while (!alarmEnabled && status != STOP)
+    {
+        if (read(fd, &read_byte, 1) > 0)
+        {
+            switch (status)
+            {
+                case START:
+                    if (read_byte == FLAG)
+                        status = FLAG_RCV;
+                    break;
+
+                case FLAG_RCV:
+                    if (read_byte == A)
+                    {
+                        status = A_RCV;
+                        break;
+                    }
+                    else if (read_byte == FLAG)
+                    {
+                        status = FLAG_RCV;
+                        break;
+                    }
+                    status = START;
+                    break;
+
+                case A_RCV:
+                    if (read_byte == C)
+                    {
+                        status = C_RCV;
+                        break;
+                    }
+                    else if (read_byte == FLAG)
+                    {
+                        status = FLAG_RCV;
+                        break;
+                    }
+                    status = START;
+                    break;
+
+                case C_RCV:
+                    if (read_byte == (A^C) )
+                    {
+                        status = BCC_OK;
+                        break;
+                    }
+                    else if (read_byte == FLAG)
+                    {
+                        status = FLAG_RCV;
+                        break;
+                    }
+                    status = START;
+                    break;
+                case BCC_OK:
+                    if (read_byte == FLAG)
+                    {
+                        status = STOP;
+                        break;
+                    }
+                    status = START; 
+                    break;
+                case STOP:
+                    break;
+            }
+        }
+    }
+    return status == STOP ? TRUE : FALSE; 
+}
+bool checkUFrame(int fd, unsigned char A, unsigned char C)
+{
+    return checkSFrame(fd,A,C);
+}
+
+int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
+{
+    int stuffedBufSize = bufSize + 6;
+    frame = realloc(frame,stuffedBufSize);
+
+    frame[0] = FLAG;
+    frame[1] = A_T;
+    frame[2] = C_IFrame;
+    frame[3] = A_T ^ C_IFrame;
+    
+    unsigned char bcc2 = buf[0];
+    int framePos = 4;
+    for (int i = 1; i < bufSize; i++, framePos++)
+    {
+        bcc2 ^= buf[i];
+
+        if (buf[i] == FLAG)
+        {
+            frame = realloc(frame,++stuffedBufSize);
+            frame[framePos++] = ESC;
+            frame[framePos]   = 0x5E;
+        }
+        else if(buf[i] == ESC)
+        {
+            frame = realloc(frame,++stuffedBufSize);
+            frame[framePos++] = ESC;
+            frame[framePos]   = 0x5D;
+        }
+        else
+        {
+            frame[framePos] = buf[i];
+        }
+    }
+    frame[framePos++] = bcc2;
+    frame[framePos++] = FLAG;
+
+    return stuffedBufSize;
 }
