@@ -82,7 +82,6 @@ int llwrite(const unsigned char *buf, int bufSize)
     
     while (attempts < maxAttempts)
     {
-        acknowledgment = UNKNOWN;
         alarm(timeout);
         alarmEnabled = TRUE;
         write(fd,frame,frameSize);
@@ -98,7 +97,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         }
         else
         {
-            acknowledgment == UNKNOWN;
+            acknowledgment = UNKNOWN;
         }
 
 
@@ -257,9 +256,8 @@ bool checkUFrame(int fd, unsigned char A, unsigned char C)
 unsigned char checkRRFrame(int fd)
 {
     DLState status = START;
-    unsigned char read_byte = 0;
+    unsigned char read_byte;
     unsigned char response;
-    frameAcknowledgment acknowledgment = UNKNOWN
     while (alarmEnabled && status != STOP)
     {
         if (read(fd, &read_byte, 1) > 0)

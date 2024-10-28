@@ -36,7 +36,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         }
 
         unsigned char buffer[MAX_PAYLOAD_SIZE]; // Set the max amount to send on each frame
-        int AccRead; // Accumulator of readed bytes
+        int AccRead; // Accumulator of read bytes
 
         int Start_of_Transmission = llwrite ( STARTBuff , STARTBuff_Size ); //Send the start control package to signal the start of transmission
 
@@ -63,7 +63,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 }
             }
             
-            unsigned char Answer_Signal; // Package to where store the answer signal
+            unsigned char* Answer_Signal; // Package to where store the answer signal
             int ASBytes = llread ( Answer_Signal ); //Reads the signal of the receiver part
             
             if ( ASBytes > 0 && /* Something to check if was properly received */ ) 
