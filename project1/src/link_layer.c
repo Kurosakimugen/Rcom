@@ -11,7 +11,7 @@ int alarmEnabled = FALSE;
 int alarmCount = 0;
 int timeout = 0;
 LinkLayerRole role;
-unsigned char C_IFrame = 0x00;
+unsigned char C_IFrame = 0xAA;
 extern int fd;
 
 ////////////////////////////////////////////////
@@ -49,6 +49,7 @@ int llopen(LinkLayer connectionParameters)
         {
             sendSFrame(fd,A_T,C_SET);
             alarm(timeout);
+            alarmEnabled = TRUE;
             stop = checkUFrame(fd,A_R,C_UA);    
             attempts++;
         }
@@ -73,6 +74,7 @@ int llopen(LinkLayer connectionParameters)
 int llwrite(const unsigned char *buf, int bufSize)
 {
     unsigned char* frame = (unsigned char*) malloc(bufSize);
+    unsigned char response;
     int frameSize = mountFrame(buf,bufSize,frame);
 
     int attempts = 0;
@@ -81,18 +83,43 @@ int llwrite(const unsigned char *buf, int bufSize)
     while (attempts < maxAttempts)
     {
         acknowledgment = UNKNOWN;
-        alarmEnabled = FALSE;
         alarm(timeout);
-        while (alarmEnabled == FALSE && acknowledgment == UNKNOWN)
+        alarmEnabled = TRUE;
+        write(fd,frame,frameSize);
+
+        response = checkRRFrame(fd);
+        if (response == C_RR0 || response == C_RR1)
         {
-            write(fd,frame,frameSize);
+            acknowledgment = ACCEPTED;
         }
+        else if (response == REJ_0 || response == REJ_1)
+        {
+            acknowledgment = REJECTED;
+        }
+        else
+        {
+            acknowledgment == UNKNOWN;
+        }
+
+
+        if (acknowledgment == ACCEPTED)
+        {
+            C_IFrame = C_IFrame == C_RR0 ? C_RR1 : C_RR0; 
+            break;
+        }
+        attempts++;
     }
-
     
-    
-
-    return 0;
+    free(frame);
+    if (acknowledgment == ACCEPTED)
+    {
+        return frameSize;
+    }
+    else
+    {
+        llclose(fd);
+        return -1;
+    }
 }
 
 ////////////////////////////////////////////////
@@ -118,6 +145,7 @@ int llclose(int showStatistics)     //TODO show Statistics
     {
         sendSFrame(fd,A_T,DISC);
         alarm(timeout);
+        alarmEnabled = TRUE;
         stop = checkUFrame(fd, A_R, DISC);
 
         attempts++;
@@ -224,6 +252,83 @@ bool checkSFrame(int fd, unsigned char A, unsigned char C)
 bool checkUFrame(int fd, unsigned char A, unsigned char C)
 {
     return checkSFrame(fd,A,C);
+}
+
+unsigned char checkRRFrame(int fd)
+{
+    DLState status = START;
+    unsigned char read_byte = 0;
+    unsigned char response;
+    frameAcknowledgment acknowledgment = UNKNOWN
+    while (alarmEnabled && status != STOP)
+    {
+        if (read(fd, &read_byte, 1) > 0)
+        {
+            switch (status)
+            {
+                case START:
+                    if (read_byte == FLAG)
+                        status = FLAG_RCV;
+                    break;
+                case FLAG_RCV:
+                    if (read_byte == A_R)
+                    {
+                        status = A_RCV;
+                        break;
+                    }
+                    else if (read_byte == FLAG)
+                    {
+                        status = FLAG_RCV;
+                        break;
+                    }
+                    status = START;
+                    break;
+
+                case A_RCV:
+                    if (read_byte == C_RR0 || read_byte == C_RR1 || read_byte == REJ_0 || read_byte == REJ_1  ) 
+                    {
+                        status = C_RCV;
+                        response = read_byte;
+                        break;
+                    }
+                    else if (read_byte == FLAG)
+                    {
+                        status = FLAG_RCV;
+                        break;
+                    }
+                    status = START;
+                    break;
+
+                case C_RCV:
+                    if (read_byte == (A_R ^ read_byte) )
+                    {
+                        status = BCC_OK;
+                        break;
+                    }
+                    else if (read_byte == FLAG)
+                    {
+                        status = FLAG_RCV;
+                        break;
+                    }
+                    status = START;
+                    break;
+                case BCC_OK:
+                    if (read_byte == FLAG)
+                    {
+                        status = STOP;
+                        alarm(0);
+                        break;
+                    }
+                    status = START; 
+                    break;
+                case STOP:
+                    break;
+            }
+
+        }
+    }
+    
+    return status == STOP ? response : 0x00;
 }
 
 int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)

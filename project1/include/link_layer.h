@@ -22,6 +22,10 @@
 #define C_UA  0x07
 #define DISC  0x0B
 #define ESC   0x7D
+#define C_RR0  0xAA
+#define C_RR1  0xAB
+#define REJ_0 0x54
+#define REJ_1 0x55
 
 
 typedef enum
@@ -89,8 +93,11 @@ int sendUFrame(int fd, unsigned char A, unsigned char C);
 
 bool checkSFrame(int fd, unsigned char A, unsigned char C);  //Implements state machine
 bool checkUFrame(int fd, unsigned char A, unsigned char C);
+unsigned char checkRRFrame(int fd);
 
 int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame);
+
+
 
 
 #endif // _LINK_LAYER_H_
