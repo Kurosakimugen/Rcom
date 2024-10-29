@@ -26,6 +26,8 @@
 #define C_RR1  0xAB
 #define REJ_0 0x54
 #define REJ_1 0x55
+#define ESC_FLAG 0x5E
+#define ESC_ESC 0x5D
 
 
 typedef enum
@@ -42,7 +44,18 @@ typedef enum
     C_RCV,
     BCC_OK,
     STOP,
-}DLState;
+}S_U_FrameState;
+
+typedef enum
+{
+    I_START,
+    I_FLAG_RCV,
+    I_A_RCV,
+    I_C_RCV,
+    READING_DATA,
+    FOUND_ESC,
+    I_STOP
+}I_FrameState;
 
 typedef enum
 {
@@ -90,6 +103,7 @@ int llclose(int showStatistics);
 
 int sendSFrame(int fd, unsigned char A, unsigned char C);
 int sendUFrame(int fd, unsigned char A, unsigned char C);
+int sendDiscFrame(int fd, unsigned char A, unsigned char C);
 
 bool checkSFrame(int fd, unsigned char A, unsigned char C);  //Implements state machine
 bool checkUFrame(int fd, unsigned char A, unsigned char C);

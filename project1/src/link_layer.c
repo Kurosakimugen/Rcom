@@ -11,7 +11,7 @@ int alarmEnabled = FALSE;
 int alarmCount = 0;
 int timeout = 0;
 LinkLayerRole role;
-unsigned char C_IFrame = 0xAA;
+unsigned char C_IFrame = C_RR0;
 extern int fd;
 
 ////////////////////////////////////////////////
@@ -34,7 +34,7 @@ int llopen(LinkLayer connectionParameters)
     fd = openSerialPort(connectionParameters.serialPort, connectionParameters.baudRate);
     if (fd < 0)
     {
-        printf("\nProblem opening Serial Port\n");
+        printf("\nProblem in llopen opening Serial Port\n");
         return -1;
     }
     maxAttempts = connectionParameters.nRetransmissions;
@@ -54,18 +54,22 @@ int llopen(LinkLayer connectionParameters)
             attempts++;
         }
         if (stop == FALSE)
+        {
+            printf("\tFailed to receive UA in llopen");
             return -1;
+        }
+        else
+        {
+            alarm(0);
+        }
     }
     else if (connectionParameters.role == LlRx)
     {
         alarmEnabled = FALSE;
-        checkSFrame(fd,A_T,C_SET);
+        if (!checkSFrame(fd,A_T,C_SET))
+            return -1;
     }
-    else
-    {
-        return -1;
-    }
-    return 1;
+    return fd;
 }
 
 ////////////////////////////////////////////////
@@ -116,6 +120,7 @@ int llwrite(const unsigned char *buf, int bufSize)
     }
     else
     {
+        printf("Could not Transmit track in llwrite even after retransmission");
         llclose(fd);
         return -1;
     }
@@ -126,9 +131,119 @@ int llwrite(const unsigned char *buf, int bufSize)
 ////////////////////////////////////////////////
 int llread(unsigned char *packet)
 {
-    // TODO
+    unsigned char read_byte;
+    unsigned char C;
+    I_FrameState status = I_START;
+    int index = 0;
 
-    return 0;
+    while (status != I_STOP)
+    {
+        if (read(fd, &read_byte, 1) > 0)
+        {
+            switch (status)
+            {
+                case I_START:
+                    if (read_byte == FLAG) status = I_FLAG_RCV;
+                    break;
+                case I_FLAG_RCV:
+                    if (read_byte == A_R)
+                    {
+                        status = I_A_RCV;
+                        break;
+                    }
+                    else if (read_byte == FLAG)
+                    {
+                        status = I_FLAG_RCV;
+                        break;
+                    }
+                    status = I_START;
+                    break;
+
+                case I_A_RCV:
+                    if (read_byte == C_RR0 || read_byte == C_RR1)
+                    {
+                        status = I_C_RCV;
+                        C = read_byte;
+                    }
+                    else if (read_byte == FLAG)
+                    {
+                        status = I_FLAG_RCV;
+                        break;
+                    }
+                    else if (read_byte == DISC)
+                    {
+                        return sendDiscFrame(fd,A_R,DISC) > 0 ? index : -1;
+                    }
+                    status = I_START;
+                    break;
+                case I_C_RCV:
+                    if (read_byte == (A_T ^ C) )
+                    {
+                        status = READING_DATA;
+                        break;
+                    }
+                    else if (read_byte == FLAG)
+                    {
+                        status = I_FLAG_RCV;
+                        break;
+                    }
+                    status = I_START;
+                    break;
+                case READING_DATA:
+                    if (read_byte == ESC)
+                    {
+                        status = FOUND_ESC;
+                        break;
+                    }
+                    else if (read_byte == FLAG)
+                    {
+                        unsigned char packetBcc2 = packet[index--];
+                        packet[index] = '\0';
+
+                        unsigned char dataBcc2 = packet[0];
+                        for (int i = 1; i < index; i++)
+                        {
+                            dataBcc2 ^= packet[i];
+                        }
+
+                        if (dataBcc2 == packetBcc2)
+                        {
+                            C_IFrame = C_IFrame == C_RR0 ? C_RR1 : C_RR0;
+                            sendUFrame(fd, A_R, C_IFrame);
+                            status = I_STOP;
+                            return index;
+                        }
+                        else
+                        {
+                            printf("\tReceived wrong BCC2\n");
+                            unsigned char rej = C_IFrame == C_RR0 ? REJ_0 : REJ_1;
+                            sendUFrame(fd,A_R,rej);
+                            return -1;
+                        }
+                    }
+                    else
+                    {
+                        packet[index++] = read_byte; 
+                    }
+                    break;
+                case FOUND_ESC:
+                    if (read_byte == ESC_FLAG)
+                    {
+                        packet[index++] = FLAG;
+                    }
+                    else if (read_byte == ESC_ESC)
+                    {
+                        packet[index++] = ESC;
+                    }
+                    status = READING_DATA;
+                    break; 
+                case I_STOP:
+                    break;
+            }
+
+        }
+    }
+    return index;
 }
 
 ////////////////////////////////////////////////
@@ -174,12 +289,16 @@ int sendUFrame(int fd, unsigned char A, unsigned char C)
 {
     return sendSFrame(fd,A,C);
 }
+int sendDiscFrame(int fd, unsigned char A, unsigned char C)
+{
+    return sendSFrame(fd,A,C);
+}
 
 
 
 bool checkSFrame(int fd, unsigned char A, unsigned char C)
 {
-    DLState status = START;
+    S_U_FrameState status = START;
     unsigned char read_byte = 0;
     while (!alarmEnabled && status != STOP)
     {
@@ -255,7 +374,7 @@ bool checkUFrame(int fd, unsigned char A, unsigned char C)
 
 unsigned char checkRRFrame(int fd)
 {
-    DLState status = START;
+    S_U_FrameState status = START;
     unsigned char read_byte;
     unsigned char response;
     while (alarmEnabled && status != STOP)
