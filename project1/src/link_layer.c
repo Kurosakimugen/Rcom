@@ -477,6 +477,7 @@ unsigned char checkRRFrame(int fd)
 
 int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
 {
+
     int stuffedBufSize = bufSize + 6;
     frame = realloc(frame,stuffedBufSize);
 
@@ -487,6 +488,24 @@ int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
     
     unsigned char bcc2 = buf[0];
     int framePos = 4;
+
+    if (buf[0] == FLAG)
+    {
+        frame = realloc(frame,++stuffedBufSize);
+        frame[framePos++] = ESC;
+        frame[framePos++]   = 0x5E;
+    }
+    else if(buf[0] == ESC)
+    {
+        frame = realloc(frame,++stuffedBufSize);
+        frame[framePos++] = ESC;
+        frame[framePos++]   = 0x5D;
+    }
+    else
+    {
+        frame[framePos++] = buf[0];
+    }
+
     for (int i = 1; i < bufSize; i++, framePos++)
     {
         bcc2 ^= buf[i];
@@ -526,6 +545,5 @@ int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
         frame[framePos++] = bcc2;
     }
     frame[framePos++] = FLAG;
-
     return stuffedBufSize;
 }
