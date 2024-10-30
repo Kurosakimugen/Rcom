@@ -84,7 +84,6 @@ int llwrite(const unsigned char *buf, int bufSize)
     unsigned char* frame = (unsigned char*) malloc(bufSize);
     unsigned char response;
     int frameSize = mountFrame(buf,bufSize,frame);
-    printf("\t%x\t%x\t%x\n",frame[0],frame[1],frame[2]);
 
     int attempts = 0;
     frameAcknowledgment acknowledgment = UNKNOWN;
@@ -154,14 +153,13 @@ int llread(unsigned char *packet)
     {
         if (read(fd, &read_byte, 1) > 0)
         {
-            printf("\t%x\n",read_byte);
             switch (status)
             {
                 case I_START:
                     if (read_byte == FLAG) status = I_FLAG_RCV;
                     break;
                 case I_FLAG_RCV:
-                    if (read_byte == A_R)
+                    if (read_byte == A_T)
                     {
                         status = I_A_RCV;
                         break;
@@ -175,10 +173,11 @@ int llread(unsigned char *packet)
                     break;
 
                 case I_A_RCV:
-                    if (read_byte == C_RR0 || read_byte == C_RR1)
+                    if (read_byte == 0x00 || read_byte == 0x80) //TODO
                     {
                         status = I_C_RCV;
                         C = read_byte;
+                        break;
                     }
                     else if (read_byte == FLAG)
                     {
@@ -212,7 +211,7 @@ int llread(unsigned char *packet)
                     }
                     else if (read_byte == FLAG)
                     {
-                        unsigned char packetBcc2 = packet[index--];
+                        unsigned char packetBcc2 = packet[--index];
                         packet[index] = '\0';
 
                         unsigned char dataBcc2 = packet[0];
@@ -232,6 +231,7 @@ int llread(unsigned char *packet)
                         else
                         {
                             printf("\tReceived wrong BCC2\n");
+                            printf("dataBcc2 %X        packetBcc2 %X\n",dataBcc2,packetBcc2);
                             unsigned char rej = C_IFrame == C_RR0 ? REJ_0 : REJ_1;
                             sendUFrame(fd,A_R,rej);
                             return -1;
@@ -252,7 +252,7 @@ int llread(unsigned char *packet)
                         packet[index++] = ESC;
                     }
                     status = READING_DATA;
-                    break; 
+                    break;
                 case I_STOP:
                     break;
             }
@@ -260,7 +260,7 @@ int llread(unsigned char *packet)
         }
         else
         {
-            printf("Failed read in llread\n");
+            //printf("Failed read in llread\t");
         }
     }
     return index;
@@ -482,8 +482,8 @@ int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
 
     frame[0] = FLAG;
     frame[1] = A_T;
-    frame[2] = C_IFrame;
-    frame[3] = A_T ^ C_IFrame;
+    frame[2] = C_IFrame == C_RR0 ? 0x00 : 0x80; //TODO
+    frame[3] = A_T ^ frame[2];
     
     unsigned char bcc2 = buf[0];
     int framePos = 4;
@@ -508,7 +508,23 @@ int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
             frame[framePos] = buf[i];
         }
     }
-    frame[framePos++] = bcc2;
+
+    if (bcc2 == FLAG)
+    {
+        frame = realloc(frame,++stuffedBufSize);
+        frame[framePos++] = ESC;
+        frame[framePos++]   = 0x5E;
+    }
+    else if (bcc2 == ESC)
+    {
+        frame = realloc(frame,++stuffedBufSize);
+        frame[framePos++] = ESC;
+        frame[framePos++]   = 0x5D;
+    }
+    else
+    {
+        frame[framePos++] = bcc2;
+    }
     frame[framePos++] = FLAG;
 
     return stuffedBufSize;
