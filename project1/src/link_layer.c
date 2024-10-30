@@ -31,7 +31,6 @@ void alarmHandler(int signal)
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
 {   
-    /*
     fd = openSerialPort(connectionParameters.serialPort, connectionParameters.baudRate);
     if (fd < 0)
     {
@@ -39,18 +38,21 @@ int llopen(LinkLayer connectionParameters)
         return -1;
     }
 
+
     if (connectionParameters.role == LlTx)
     {
-        unsigned char frame[1] = {0xAA};
-        if (write(fd,frame,1) > 0)
-            printf("Good Write");
-        sleep(2);
-    }else{
-        unsigned char re = 0x00;
-        sleep(4);
-        int res = read(fd,&re,1);
-        printf("\nCONECTION: %X   res:%d\n",re,res);
-    }*/
+        unsigned char list[3] = {'A','B','C'};
+        write(fd,&list,3);
+        sleep(3);
+    }
+    else if (connectionParameters.role == LlRx)
+    {
+        sleep(5);
+        unsigned char list2[3] = {0};
+        int size = read(fd,list2,3);
+        printf("\nsize: %d    list: %c\n",size,list2[0]);
+    }
+    return fd;
     
     maxAttempts = connectionParameters.nRetransmissions;
     timeout = connectionParameters.timeout;
