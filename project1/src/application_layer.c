@@ -15,9 +15,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     linkLayer.baudRate = baudRate;
     linkLayer.nRetransmissions = nTries;
     linkLayer.timeout = timeout;
-    printf("will call llopen\n");
     int fd = llopen(linkLayer); // Start the connection
-    printf("\nReturned llopen\n");
 
     if (fd < 0) // Case of an error on estabilishing a connection
     {
@@ -29,7 +27,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
     if ( linkLayer.role == LlTx ) // Section related to the Transmitter
     {
         FILE* file = fopen ( filename , "rb" ); //Try to open the file
-
         if (file == NULL) // If wasn't possible to open the file
         {
             printf ( "\n Could not perform fopen\n" );
@@ -50,6 +47,8 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
                 fclose ( file );
                 llclose ( TRUE );
                 exit ( -1 );
+            }else{
+                printf("\tDid good llwrite\n");
             }
         }
 

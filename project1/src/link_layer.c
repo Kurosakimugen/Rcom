@@ -30,29 +30,9 @@ void alarmHandler(int signal)
 // LLOPEN
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
-{   
+{
+    
     fd = openSerialPort(connectionParameters.serialPort, connectionParameters.baudRate);
-    if (fd < 0)
-    {
-        printf("\nProblem in llopen opening Serial Port\n");
-        return -1;
-    }
-
-
-    if (connectionParameters.role == LlTx)
-    {
-        unsigned char list[3] = {'A','B','C'};
-        write(fd,&list,3);
-        sleep(3);
-    }
-    else if (connectionParameters.role == LlRx)
-    {
-        sleep(5);
-        unsigned char list2[3] = {0};
-        int size = read(fd,list2,3);
-        printf("\nsize: %d    list: %c\n",size,list2[0]);
-    }
-    return fd;
     
     maxAttempts = connectionParameters.nRetransmissions;
     timeout = connectionParameters.timeout;
@@ -73,12 +53,12 @@ int llopen(LinkLayer connectionParameters)
         }
         if (stop == false)
         {
-            printf("\tFailed to receive UA in llopen");
             return -1;
         }
         else
         {
             alarm(0);
+            alarmCount = 0;
         }
     }
     else if (connectionParameters.role == LlRx)
@@ -104,6 +84,7 @@ int llwrite(const unsigned char *buf, int bufSize)
     unsigned char* frame = (unsigned char*) malloc(bufSize);
     unsigned char response;
     int frameSize = mountFrame(buf,bufSize,frame);
+    printf("\t%x\t%x\t%x\n",frame[0],frame[1],frame[2]);
 
     int attempts = 0;
     frameAcknowledgment acknowledgment = UNKNOWN;
@@ -112,19 +93,28 @@ int llwrite(const unsigned char *buf, int bufSize)
     {
         alarm(timeout);
         alarmEnabled = true;
-        write(fd,frame,frameSize);
-
+        if (write(fd,frame,frameSize) < 0)
+        {
+            printf("\tFailed to send 1 Frame\n");
+            continue;
+        }else{
+            printf("\tGood Write\n");
+        }
+        sleep(2);
         response = checkRRFrame(fd);
         if (response == C_RR0 || response == C_RR1)
         {
+            printf("Got Accepted\n");
             acknowledgment = ACCEPTED;
         }
         else if (response == REJ_0 || response == REJ_1)
         {
+            printf("Got Rejected\n");
             acknowledgment = REJECTED;
         }
         else
         {
+            printf("Got No response\n");
             acknowledgment = UNKNOWN;
         }
 
@@ -144,7 +134,7 @@ int llwrite(const unsigned char *buf, int bufSize)
     }
     else
     {
-        printf("Could not Transmit track in llwrite even after retransmission");
+        printf("Could not Transmit track in llwrite even after retransmission\n");
         llclose(fd);
         return -1;
     }
@@ -164,6 +154,7 @@ int llread(unsigned char *packet)
     {
         if (read(fd, &read_byte, 1) > 0)
         {
+            printf("\t%x\n",read_byte);
             switch (status)
             {
                 case I_START:
@@ -233,6 +224,7 @@ int llread(unsigned char *packet)
                         if (dataBcc2 == packetBcc2)
                         {
                             C_IFrame = C_IFrame == C_RR0 ? C_RR1 : C_RR0;
+                            printf("Will send U frame telling it received correct data\n");
                             sendUFrame(fd, A_R, C_IFrame);
                             status = I_STOP;
                             return index;
@@ -265,6 +257,10 @@ int llread(unsigned char *packet)
                     break;
             }
 
+        }
+        else
+        {
+            printf("Failed read in llread\n");
         }
     }
     return index;
@@ -444,7 +440,7 @@ unsigned char checkRRFrame(int fd)
                     break;
 
                 case C_RCV:
-                    if (read_byte == (A_R ^ read_byte) )
+                    if (read_byte == (A_R ^ response) )
                     {
                         status = BCC_OK;
                         break;
@@ -461,6 +457,7 @@ unsigned char checkRRFrame(int fd)
                     {
                         status = STOP;
                         alarm(0);
+                        alarmCount = 0;
                         break;
                     }
                     status = START; 
@@ -468,7 +465,10 @@ unsigned char checkRRFrame(int fd)
                 case STOP:
                     break;
             }
-
+        }
+        else
+        {
+            printf("Failed read in checkRRFrame\n");
         }
     }
     
