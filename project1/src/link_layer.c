@@ -134,7 +134,6 @@ int llwrite(const unsigned char *buf, int bufSize)
     else
     {
         printf("Could not Transmit track in llwrite even after retransmission\n");
-        llclose(fd);
         return -1;
     }
 }
