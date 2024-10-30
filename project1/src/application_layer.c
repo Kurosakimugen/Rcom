@@ -10,13 +10,14 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 {
     LinkLayer linkLayer;
     strcpy(linkLayer.serialPort, serialPort);
-    if (strcmp("tx",role))
+    if (strcmp("tx",role) == 0)
         linkLayer.role = LlTx; else linkLayer.role = LlRx;
     linkLayer.baudRate = baudRate;
     linkLayer.nRetransmissions = nTries;
     linkLayer.timeout = timeout;
-
+    printf("will call llopen\n");
     int fd = llopen(linkLayer); // Start the connection
+    printf("\nReturned llopen\n");
 
     if (fd < 0) // Case of an error on estabilishing a connection
     {
@@ -55,7 +56,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         fclose(file); // Close the file once the loop is over and was well sent
         llclose(TRUE); // Close connection after sending the file and signals the receiver to close the connection
     }
-
     else if ( linkLayer.role == LlRx ) // Section related to the Receiver
     {
         FILE* file = fopen ( filename , "wb" ); // Open the file to send the data received
@@ -94,4 +94,5 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         fclose ( file ); // Close the file once all the information has been written
         llclose ( TRUE ); // Close connection when the file is over receiveing
     }
+    
 }

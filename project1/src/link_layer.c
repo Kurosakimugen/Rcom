@@ -7,7 +7,7 @@
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
 int maxAttempts = 0;
-int alarmEnabled = FALSE;
+int alarmEnabled = false;
 int alarmCount = 0;
 int timeout = 0;
 LinkLayerRole role;
@@ -20,7 +20,7 @@ extern int fd;
 
 void alarmHandler(int signal)
 {
-    alarmEnabled = FALSE;
+    alarmEnabled = false;
     alarmCount++;
     printf("Alarm #%d\n", alarmCount);
 }
@@ -31,29 +31,45 @@ void alarmHandler(int signal)
 ////////////////////////////////////////////////
 int llopen(LinkLayer connectionParameters)
 {   
+    /*
     fd = openSerialPort(connectionParameters.serialPort, connectionParameters.baudRate);
     if (fd < 0)
     {
         printf("\nProblem in llopen opening Serial Port\n");
         return -1;
     }
+
+    if (connectionParameters.role == LlTx)
+    {
+        unsigned char frame[1] = {0xAA};
+        if (write(fd,frame,1) > 0)
+            printf("Good Write");
+        sleep(2);
+    }else{
+        unsigned char re = 0x00;
+        sleep(4);
+        int res = read(fd,&re,1);
+        printf("\nCONECTION: %X   res:%d\n",re,res);
+    }*/
+    
     maxAttempts = connectionParameters.nRetransmissions;
     timeout = connectionParameters.timeout;
     int attempts = 0;
     
     if (connectionParameters.role == LlTx)
     {
-        bool stop = FALSE;
+        bool stop = false;
         (void) signal(SIGALRM, alarmHandler);
-        while (attempts < maxAttempts && stop == FALSE)
+        while (attempts < maxAttempts && stop == false)
         {
             sendSFrame(fd,A_T,C_SET);
+            sleep(2);
             alarm(timeout);
-            alarmEnabled = TRUE;
+            alarmEnabled = true;
             stop = checkUFrame(fd,A_R,C_UA);    
             attempts++;
         }
-        if (stop == FALSE)
+        if (stop == false)
         {
             printf("\tFailed to receive UA in llopen");
             return -1;
@@ -65,9 +81,15 @@ int llopen(LinkLayer connectionParameters)
     }
     else if (connectionParameters.role == LlRx)
     {
-        alarmEnabled = FALSE;
-        if (!checkSFrame(fd,A_T,C_SET))
+        alarmEnabled = true;
+        if (checkSFrame(fd,A_T,C_SET))
+        {
+            sendUFrame(fd,A_R,C_UA);
+        }
+        else
+        {
             return -1;
+        }
     }
     return fd;
 }
@@ -87,7 +109,7 @@ int llwrite(const unsigned char *buf, int bufSize)
     while (attempts < maxAttempts)
     {
         alarm(timeout);
-        alarmEnabled = TRUE;
+        alarmEnabled = true;
         write(fd,frame,frameSize);
 
         response = checkRRFrame(fd);
@@ -251,21 +273,21 @@ int llread(unsigned char *packet)
 ////////////////////////////////////////////////
 int llclose(int showStatistics)     //TODO show Statistics
 {
-    bool stop = FALSE;
+    bool stop = false;
     int attempts = 0;
     (void) signal(SIGALRM, alarmHandler);
     
-    while (attempts < maxAttempts && stop == FALSE)
+    while (attempts < maxAttempts && stop == false)
     {
         sendSFrame(fd,A_T,DISC);
         alarm(timeout);
-        alarmEnabled = TRUE;
+        alarmEnabled = true;
         stop = checkUFrame(fd, A_R, DISC);
 
         attempts++;
     }
 
-    if (stop == FALSE)
+    if (stop == false)
     {
         printf("Didn't receive Receive confirmation DISC");
         return -1;
@@ -282,7 +304,6 @@ int sendSFrame(int fd, unsigned char A, unsigned char C)
 {
     unsigned char set[5] = {FLAG, A, C, (A ^ C), FLAG};
     int res = write(fd,set,5);
-    sleep(1);
     return res;
 }
 int sendUFrame(int fd, unsigned char A, unsigned char C)
@@ -300,7 +321,7 @@ bool checkSFrame(int fd, unsigned char A, unsigned char C)
 {
     S_U_FrameState status = START;
     unsigned char read_byte = 0;
-    while (!alarmEnabled && status != STOP)
+    while (alarmEnabled && status != STOP)
     {
         if (read(fd, &read_byte, 1) > 0)
         {
@@ -364,8 +385,12 @@ bool checkSFrame(int fd, unsigned char A, unsigned char C)
                     break;
             }
         }
+        else
+        {
+            //printf("\tError in read");
+        }
     }
-    return status == STOP ? TRUE : FALSE; 
+    return status == STOP ? true : false; 
 }
 bool checkUFrame(int fd, unsigned char A, unsigned char C)
 {
