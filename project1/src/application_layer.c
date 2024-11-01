@@ -5,6 +5,9 @@
 #include <stdio.h>
 #include <string.h>
 
+// Show statistics variables
+extern int frameCounter;
+
 void applicationLayer(const char *serialPort, const char *role, int baudRate,
                       int nTries, int timeout, const char *filename)
 {
@@ -40,6 +43,7 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         {
             int BytesWritten = 0;
             BytesWritten = llwrite ( buffer , AccRead ); //Sends a part of the file
+            frameCounter++;
             
 
             if ( BytesWritten < 0 ) // Case of an error ocurring when sending the file
@@ -91,12 +95,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
             {
                 printf ( " \n Error on receiving the chunk. \n " );
                 continue;
-                /*TODO
-                fclose ( file );
-                llclose ( TRUE );
-                exit (-1);
-                continue;
-                */
             }
         }
 

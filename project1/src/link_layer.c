@@ -6,9 +6,15 @@
 // MISC
 #define _POSIX_SOURCE 1 // POSIX compliant source
 
+// Show statistcs variables
+int retransmissionsCount = 0;
+int rejectionCount = 0;
+int alarmCount = 0;
+int frameCounter = 0;
+
+
 int maxAttempts = 0;
 int alarmEnabled = false;
-int alarmCount = 0;
 int timeout = 0;
 LinkLayerRole role;
 unsigned char C_IFrame = C_RR0;
@@ -57,7 +63,6 @@ int llopen(LinkLayer connectionParameters)
         else
         {
             alarm(0);
-            alarmCount = 0;
         }
     }
     else if (connectionParameters.role == LlRx)
@@ -89,28 +94,30 @@ int llwrite(const unsigned char *buf, int bufSize)
     
     while (attempts < maxAttempts)
     {
-        alarm(timeout);
-        alarmEnabled = true;
         if (write(fd,frame,frameSize) < 0)
         {
-            printf("\tFailed to send 1 Frame\n");
+            printf("\tFailed to write 1 Frame\n");
             continue;
         }
+        alarm(timeout);
+        alarmEnabled = true;
         response = checkRRFrame(fd);
         if (response == C_RR0 || response == C_RR1)
         {
-            printf("Got Accepted\n");
             acknowledgment = ACCEPTED;
         }
         else if (response == REJ_0 || response == REJ_1)
         {
-            printf("Got Rejected\n");
+
             acknowledgment = REJECTED;
+            retransmissionsCount++;
+            rejectionCount++;
         }
         else
         {
-            printf("Got No response\n");
             acknowledgment = UNKNOWN;
+            retransmissionsCount++;
+            attempts++;
         }
 
         if (acknowledgment == ACCEPTED)
@@ -118,7 +125,6 @@ int llwrite(const unsigned char *buf, int bufSize)
             C_IFrame = C_IFrame == C_RR0 ? C_RR1 : C_RR0; 
             break;
         }
-        attempts++;
     }
     
     free(frame);
@@ -217,7 +223,6 @@ int llread(unsigned char *packet)
                         if (dataBcc2 == packetBcc2)
                         {
                             C_IFrame = C_IFrame == C_RR0 ? C_RR1 : C_RR0;
-                            printf("Will send U frame telling it received correct data\n");
                             sendUFrame(fd, A_R, C_IFrame);
                             return index;
                         }
@@ -261,7 +266,7 @@ int llclose(int showStatistics)     //TODO show Statistics
 {
     bool stop = false;
     int attempts = 0;
-    
+    printf("Will send first DISC\n");
     while (attempts < maxAttempts && stop == false)
     {
         sendSFrame(fd,A_T,DISC);
@@ -280,6 +285,18 @@ int llclose(int showStatistics)     //TODO show Statistics
 
     printf("Received confirmation DISC\n");
     sendUFrame(fd,A_T,C_UA);
+
+    if (showStatistics)
+    {
+        printf("\n\tStatistics\t\n");
+        printf("There were %d frames sent\n",frameCounter);
+        printf("There were %d retransmissions\n",retransmissionsCount);
+        printf("Of wich %d happened due to a REJ message\n",rejectionCount);
+        printf("There were %d alarms triggered\n",alarmCount);
+
+    }
+    
+
 
     return closeSerialPort();
 }
@@ -310,7 +327,6 @@ int sendDiscFrame(int fd, unsigned char A, unsigned char C)
 
         attempts++;
     }
-    alarmCount = 0;
     if (stop == FALSE)
         printf("Did not receive llclose UA\n");
     else
@@ -389,10 +405,6 @@ bool checkSFrame(int fd, unsigned char A, unsigned char C)
                     break;
             }
         }
-        else
-        {
-            //printf("\tError in read");
-        }
     }
     return status == STOP ? true : false; 
 }
@@ -463,7 +475,6 @@ unsigned char checkRRFrame(int fd)
                     {
                         status = STOP;
                         alarm(0);
-                        alarmCount = 0;
                         break;
                     }
                     status = START; 
