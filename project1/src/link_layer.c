@@ -45,7 +45,6 @@ int llopen(LinkLayer connectionParameters)
         while (attempts < maxAttempts && stop == false)
         {
             sendSFrame(fd,A_T,C_SET);
-            sleep(2);
             alarm(timeout);
             alarmEnabled = true;
             stop = checkUFrame(fd,A_R,C_UA);    
@@ -96,10 +95,7 @@ int llwrite(const unsigned char *buf, int bufSize)
         {
             printf("\tFailed to send 1 Frame\n");
             continue;
-        }else{
-            printf("\tGood Write\n");
         }
-        sleep(2);
         response = checkRRFrame(fd);
         if (response == C_RR0 || response == C_RR1)
         {
@@ -116,7 +112,6 @@ int llwrite(const unsigned char *buf, int bufSize)
             printf("Got No response\n");
             acknowledgment = UNKNOWN;
         }
-
 
         if (acknowledgment == ACCEPTED)
         {
@@ -185,7 +180,7 @@ int llread(unsigned char *packet)
                     }
                     else if (read_byte == DISC)
                     {
-                        return sendDiscFrame(fd,A_R,DISC) > 0 ? index : -1;
+                        return sendDiscFrame(fd,A_R,DISC) > 0;
                     }
                     status = I_START;
                     break;
@@ -224,13 +219,11 @@ int llread(unsigned char *packet)
                             C_IFrame = C_IFrame == C_RR0 ? C_RR1 : C_RR0;
                             printf("Will send U frame telling it received correct data\n");
                             sendUFrame(fd, A_R, C_IFrame);
-                            status = I_STOP;
                             return index;
                         }
                         else
                         {
                             printf("\tReceived wrong BCC2\n");
-                            printf("dataBcc2 %X        packetBcc2 %X\n",dataBcc2,packetBcc2);
                             unsigned char rej = C_IFrame == C_RR0 ? REJ_0 : REJ_1;
                             sendUFrame(fd,A_R,rej);
                             return -1;
@@ -257,10 +250,6 @@ int llread(unsigned char *packet)
             }
 
         }
-        else
-        {
-            //printf("Failed read in llread\t");
-        }
     }
     return index;
 }
@@ -272,7 +261,6 @@ int llclose(int showStatistics)     //TODO show Statistics
 {
     bool stop = false;
     int attempts = 0;
-    (void) signal(SIGALRM, alarmHandler);
     
     while (attempts < maxAttempts && stop == false)
     {
@@ -286,11 +274,12 @@ int llclose(int showStatistics)     //TODO show Statistics
 
     if (stop == false)
     {
-        printf("Didn't receive Receive confirmation DISC");
+        printf("Didn't receive Receive confirmation DISC\n");
         return -1;
     }
 
-    sendUFrame(showStatistics,A_T,C_UA);
+    printf("Received confirmation DISC\n");
+    sendUFrame(fd,A_T,C_UA);
 
     return closeSerialPort();
 }
@@ -309,7 +298,25 @@ int sendUFrame(int fd, unsigned char A, unsigned char C)
 }
 int sendDiscFrame(int fd, unsigned char A, unsigned char C)
 {
-    return sendSFrame(fd,A,C);
+    int attempts = 0;
+    bool stop = FALSE;
+
+    while (attempts < maxAttempts && stop == FALSE)
+    {
+        sendSFrame(fd,A,C);
+        alarm(timeout);
+        alarmEnabled = TRUE;
+        stop = checkUFrame(fd, A_T, C_UA);
+
+        attempts++;
+    }
+    alarmCount = 0;
+    if (stop == FALSE)
+        printf("Did not receive llclose UA\n");
+    else
+        printf("Receive llclose UA\n");
+
+    return 0;
 }
 
 
@@ -464,10 +471,6 @@ unsigned char checkRRFrame(int fd)
                 case STOP:
                     break;
             }
-        }
-        else
-        {
-            printf("Failed read in checkRRFrame\n");
         }
     }
     

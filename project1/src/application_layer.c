@@ -23,7 +23,6 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         exit ( -1 );
     }
 
-
     if ( linkLayer.role == LlTx ) // Section related to the Transmitter
     {
         FILE* file = fopen ( filename , "rb" ); //Try to open the file
@@ -39,16 +38,16 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
 
         while ( ( AccRead = fread ( buffer , 1 , MAX_PAYLOAD_SIZE , file ) ) > 0 ) //Loop to send the file
         {
-            int BytesWritten = llwrite ( buffer , AccRead ); //Sends a part of the file
+            int BytesWritten = 0;
+            BytesWritten = llwrite ( buffer , AccRead ); //Sends a part of the file
+            
 
             if ( BytesWritten < 0 ) // Case of an error ocurring when sending the file
             {
-                printf ( "\n Error sending the dataframe. \n" );
+                printf ( "\n Error sending the data frame. \n" );
                 fclose ( file );
                 llclose ( TRUE );
                 exit ( -1 );
-            }else{
-                printf("\tDid good llwrite\n");
             }
         }
 
@@ -69,29 +68,38 @@ void applicationLayer(const char *serialPort, const char *role, int baudRate,
         unsigned char packet[MAX_PAYLOAD_SIZE]; // Variable so the packet comes with the same size as the one sent
         int AccRead; //Accumalator with the bytes readed
         
-        while ( ( AccRead = llread ( packet ) ) > 0 ) // Loop to receive the file and sending acknolgdement
+        while ( TRUE )
         {
-            if ( AccRead < 0) // Case when an error occurs receiving the bit of infromation
+            AccRead = llread ( packet );
+            if (AccRead > 0)
+            {
+                int Write_file = fwrite ( packet , 1 , AccRead , file ); // Writes the information received on the file
+
+                if ( Write_file < 0 ) // Produces a message in case of an error
+                {
+                    printf ( " \n Error writing the chunk in the file. \n " );
+                    fclose ( file );
+                    llclose ( TRUE );
+                    exit ( -1 );
+                }
+            }
+            else if (AccRead == 0)
+            {
+                break;
+            }
+            else
             {
                 printf ( " \n Error on receiving the chunk. \n " );
+                continue;
+                /*TODO
                 fclose ( file );
                 llclose ( TRUE );
                 exit (-1);
-            }
-            
-            int Write_file = fwrite ( packet , 1 , AccRead , file ); // Writes the information received on the file, and 
-
-            if ( Write_file < 0 ) // Produces a message in case of an error
-            {
-                printf ( " \n Error writing the chunk in the file. \n " );
-                fclose ( file );
-                llclose ( TRUE );
-                exit ( -1 );
+                continue;
+                */
             }
         }
-        
+
         fclose ( file ); // Close the file once all the information has been written
-        llclose ( TRUE ); // Close connection when the file is over receiveing
-    }
-    
+    }    
 }

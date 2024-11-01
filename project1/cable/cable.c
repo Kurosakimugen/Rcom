@@ -72,7 +72,7 @@ int openSerialPort(const char *serialPort, struct termios *oldtio, struct termio
     newtio->c_iflag = IGNPAR;
     newtio->c_oflag = 0;
     newtio->c_lflag = 0;
-    newtio->c_cc[VTIME] = 0; // Inter-character timer unused (polling mode)
+    newtio->c_cc[VTIME] = 1; // Inter-character timer unused (polling mode)
     newtio->c_cc[VMIN] = 0;  // Read without blocking
     tcflush(fd, TCIOFLUSH);
 
