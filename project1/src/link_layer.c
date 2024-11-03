@@ -173,7 +173,7 @@ int llread(unsigned char *packet)
                     break;
 
                 case I_A_RCV:
-                    if (read_byte == 0x00 || read_byte == 0x80) //TODO
+                    if (read_byte == 0x00 || read_byte == 0x80)
                     {
                         status = I_C_RCV;
                         C = read_byte;
@@ -186,7 +186,8 @@ int llread(unsigned char *packet)
                     }
                     else if (read_byte == DISC)
                     {
-                        return sendDiscFrame(fd,A_R,DISC) > 0;
+                        sendDiscFrame(fd,A_R,DISC);
+                        return 0;
                     }
                     status = I_START;
                     break;
@@ -262,7 +263,7 @@ int llread(unsigned char *packet)
 ////////////////////////////////////////////////
 // LLCLOSE
 ////////////////////////////////////////////////
-int llclose(int showStatistics)     //TODO show Statistics
+int llclose(int showStatistics)     
 {
     bool stop = false;
     int attempts = 0;
