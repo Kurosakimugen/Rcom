@@ -85,7 +85,7 @@ int llopen(LinkLayer connectionParameters)
 ////////////////////////////////////////////////
 int llwrite(const unsigned char *buf, int bufSize)
 {
-    unsigned char* frame = (unsigned char*) malloc(bufSize);
+    unsigned char* frame = (unsigned char*) malloc(2*bufSize+7);
     unsigned char response;
     int frameSize = mountFrame(buf,bufSize,frame);
 
@@ -492,7 +492,6 @@ int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
 {
 
     int stuffedBufSize = bufSize + 6;
-    frame = realloc(frame,(bufSize*2) + 7);
 
     frame[0] = FLAG;
     frame[1] = A_T;
