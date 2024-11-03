@@ -492,11 +492,11 @@ int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
 {
 
     int stuffedBufSize = bufSize + 6;
-    frame = realloc(frame,stuffedBufSize);
+    frame = realloc(frame,(bufSize*2) + 7);
 
     frame[0] = FLAG;
     frame[1] = A_T;
-    frame[2] = C_IFrame == C_RR0 ? 0x00 : 0x80; //TODO
+    frame[2] = C_IFrame == C_RR0 ? 0x00 : 0x80;
     frame[3] = A_T ^ frame[2];
     
     unsigned char bcc2 = buf[0];
@@ -504,13 +504,13 @@ int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
 
     if (buf[0] == FLAG)
     {
-        frame = realloc(frame,++stuffedBufSize);
+        stuffedBufSize++;
         frame[framePos++] = ESC;
         frame[framePos++]   = 0x5E;
     }
     else if(buf[0] == ESC)
     {
-        frame = realloc(frame,++stuffedBufSize);
+        stuffedBufSize++;
         frame[framePos++] = ESC;
         frame[framePos++]   = 0x5D;
     }
@@ -525,13 +525,13 @@ int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
 
         if (buf[i] == FLAG)
         {
-            frame = realloc(frame,++stuffedBufSize);
+            stuffedBufSize++;
             frame[framePos++] = ESC;
             frame[framePos]   = 0x5E;
         }
         else if(buf[i] == ESC)
         {
-            frame = realloc(frame,++stuffedBufSize);
+            stuffedBufSize++;
             frame[framePos++] = ESC;
             frame[framePos]   = 0x5D;
         }
@@ -543,13 +543,13 @@ int mountFrame(const unsigned char *buf, int bufSize, unsigned char* frame)
 
     if (bcc2 == FLAG)
     {
-        frame = realloc(frame,++stuffedBufSize);
+        stuffedBufSize++;
         frame[framePos++] = ESC;
         frame[framePos++]   = 0x5E;
     }
     else if (bcc2 == ESC)
     {
-        frame = realloc(frame,++stuffedBufSize);
+        stuffedBufSize++;
         frame[framePos++] = ESC;
         frame[framePos++]   = 0x5D;
     }
