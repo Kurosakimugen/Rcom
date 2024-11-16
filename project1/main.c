@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
            "  - Baudrate: %d\n"
            "  - Number of tries: %d\n"
            "  - Timeout: %d\n"
-           "  - Filename: %s\n",
+           "  - Filename:  %s\n",
            serialPort,
            role,
            baudrate,
