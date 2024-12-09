@@ -2,8 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <regex.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include<arpa/inet.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 
 #define MAX_LENGTH  200
+#define FTP_PORT    21
 
 #define REGEX_BASE_URL_STRUCT   "^[a-zA-Z]+:\\/\\/[^ ]+$"
 #define REGEX_HAS_USER          ":\\/\\/[^@: ]+:[^@ :/]*@"
@@ -21,6 +27,7 @@
 
 struct URL_RFC1738 {
     char host[MAX_LENGTH];
+    char hostname[MAX_LENGTH];
     char path[MAX_LENGTH];
     char filename[MAX_LENGTH];
     char user[MAX_LENGTH];

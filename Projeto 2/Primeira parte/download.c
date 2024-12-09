@@ -28,7 +28,6 @@ int getUser_Pass(char* inputURL, struct URL_RFC1738 *url)
 
     return 0;
 }
-
 int getRegexMatch(char* inputURL, char* regexFormula,int startOffset,int endOffset, char* res)
 {
     regex_t regex;
@@ -43,7 +42,6 @@ int getRegexMatch(char* inputURL, char* regexFormula,int startOffset,int endOffs
     return 0;
     
 }
-
 int parseURL(char* inputURL, struct URL_RFC1738 *url)
 {
     regex_t regex;
@@ -80,23 +78,60 @@ int parseURL(char* inputURL, struct URL_RFC1738 *url)
 
     return 0;
 }
-
-int main()
+void buildURL(char* address, struct URL_RFC1738 *url)
 {
-    struct URL_RFC1738 url; 
-    int res = parseURL("http://website.com/path/to/dest/res", &url);
-    if (res != 0)
+    struct hostent *h;
+    if (parseURL(address, url) != 0)
     {
         perror("URL in wrong format");
         exit(-1);
     }
-    printf("User: %s\n", url.user);
-    printf("Password: %s\n", url.password);
-    printf("Host: %s\n", url.host);
-    printf("Path: %s\n", url.path);
-    printf("Filename: %s\n", url.filename);
+    if ((h = gethostbyname(url->host)) == NULL) {
+        herror("gethostbyname()");
+        exit(-1);
+    }
+    strcpy(url->hostname,h->h_name);
+    strcpy(url->ip,inet_ntoa(*((struct in_addr *) h->h_addr)));
+}
 
 
-    printf("%i\n",res);
+int createSocket(char* ip, int port)
+{
+    int socket_fd;
+    struct sockaddr_in socketAddress;
+
+    memset(&socketAddress,0,sizeof(socketAddress));
+    socketAddress.sin_family = AF_INET;
+    socketAddress.sin_port = htons(port);
+    if (inet_pton(AF_INET, ip, &(socketAddress.sin_addr)) > 1)  //Error or ip messedup
+    {
+        perror("Error: inet_pton()");
+        exit(-1);
+    }
+    if ((socket_fd = socket(AF_INET, SOCK_STREAM, getprotobyname("tcp")->p_proto)) < 0)
+    {
+        perror("Error creating socket: socket()");
+        exit(-1);
+    }
+    if  (connect(socket_fd, (struct sockaddr *) &socketAddress ,sizeof(socketAddress)) < 0)
+    {
+        perror("Error Conecting socket: connect()");
+        exit(-1);
+    }
+    return socket_fd;
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <address to get IP address>\n", argv[0]);
+        exit(-1);
+    }
+    struct URL_RFC1738 url;
+    buildURL(argv[1], &url);
+    int socketA = createSocket(url.ip, FTP_PORT);
+
+
+
     return 0;
 }

@@ -12,3 +12,4 @@
     user name and no password, <URL: ftp://host.com/> has no user name,
     while <URL:ftp://foo:@host.com/> has a user name of "foo" and an
     empty password.
+    ftp://ftp.up.pt/pub/gnu/emacs/elisp-manual-21-2.8.tar.gz
