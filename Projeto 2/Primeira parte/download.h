@@ -8,7 +8,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#define MAX_LENGTH  200
+#define MAX_LENGTH  1000
+#define MAX_LENGTH_RES  10000
 #define FTP_PORT    21
 
 #define REGEX_BASE_URL_STRUCT   "^[a-zA-Z]+:\\/\\/[^ ]+$"
@@ -18,8 +19,19 @@
 #define REGEX_GET_USER_PASSWORD ":\\/\\/[^@/ :]+:[^@:/ ]*@"
 #define REGEX_FILENAME          "\\/[^\\/ ]+$"
 #define REGEX_PATH              "[^:\\/ ]\\/[^ ]+\\/"           //  "m/path/to/file/""
+#define REGEX_GET_USER_PASSWORD ":\\/\\/[^@/ :]+:[^@:/ ]*@"
+#define REGEX_GET_FTP_RESPONSE "^[1-5][0-9][0-9]"
 
 
+typedef enum
+{
+    START,
+    NEW_LINE,
+    FINAL_LINE,
+    NEW_LINE_CR,
+    FINAL_LINE_CR,
+    END
+} readResponseStatus;
 
 
 #define DEFAULT_USER "anonymous"

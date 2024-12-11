@@ -28,16 +28,16 @@ int getUser_Pass(char* inputURL, struct URL_RFC1738 *url)
 
     return 0;
 }
-int getRegexMatch(char* inputURL, char* regexFormula,int startOffset,int endOffset, char* res)
+int getRegexMatch(char* input, char* regexFormula,int startOffset,int endOffset, char* res)
 {
     regex_t regex;
     regmatch_t match[1];
     int start,end;
     if (regcomp(&regex, regexFormula, REG_EXTENDED) != 0) return -1;
-    if (regexec(&regex, inputURL, 1, match,0) != 0) return -1;
+    if (regexec(&regex, input, 1, match,0) != 0) return -1;
     start   = match[0].rm_so;
     end     = match[0].rm_eo;
-    strncpy(res, inputURL + start + startOffset, end - start - startOffset - endOffset);
+    strncpy(res, input + start + startOffset, end - start - startOffset - endOffset);
     res[end - start - startOffset - endOffset] = '\0';
     return 0;
     
@@ -94,7 +94,6 @@ void buildURL(char* address, struct URL_RFC1738 *url)
     strcpy(url->ip,inet_ntoa(*((struct in_addr *) h->h_addr)));
 }
 
-
 int createSocket(char* ip, int port)
 {
     int socket_fd;
@@ -118,7 +117,90 @@ int createSocket(char* ip, int port)
         perror("Error Conecting socket: connect()");
         exit(-1);
     }
+
     return socket_fd;
+}
+
+int readResponse(const int socketfd, char* buffer, char* res)
+{
+    memset(buffer,0,MAX_LENGTH_RES);
+    char responsebyte; 
+    int  responsecode;
+    int  index = 0;
+    readResponseStatus status = START;
+    memset(buffer, 0, MAX_LENGTH);
+
+    while (status != END)
+    {
+        recv(socketfd, &responsebyte, 1, 0);
+        switch (status)
+        {
+            case START:
+                buffer[index++] = responsebyte;
+                if (responsebyte == '-')
+                {
+                    status = NEW_LINE;
+                }
+                else if (responsebyte == ' ')
+                {
+                    status = FINAL_LINE;
+                }
+                break;
+            case NEW_LINE:
+                if (responsebyte == '\r')
+                {
+                    status = NEW_LINE_CR;
+                }
+                else
+                {
+                    buffer[index++] = responsebyte;
+                }
+                break;
+            case NEW_LINE_CR:
+                if (responsebyte == '\n' )
+                {
+                    buffer[index++] = responsebyte;
+                    status = START;
+                }
+                else
+                {
+                    status = NEW_LINE;
+                }
+                break;
+
+            case FINAL_LINE:
+                if (responsebyte == '\r')
+                {
+                    status = FINAL_LINE_CR;
+                }
+                else
+                {
+                    buffer[index++] = responsebyte;
+                }
+                break;
+            case FINAL_LINE_CR:
+                if (responsebyte == '\n')
+                {
+                    buffer[index++] = responsebyte;
+                    status = END;
+                    break;
+                }
+                else
+                {
+                    status = FINAL_LINE;
+                }
+                break;
+            case END:
+                break;
+            default:
+                break;
+        }
+    }
+    if (getRegexMatch(buffer,REGEX_GET_FTP_RESPONSE,0,0,res) != 0)
+    {
+        return -1;
+    }
+    return 0;    
 }
 
 int main(int argc, char *argv[])
@@ -130,8 +212,20 @@ int main(int argc, char *argv[])
     struct URL_RFC1738 url;
     buildURL(argv[1], &url);
     int socketA = createSocket(url.ip, FTP_PORT);
-
-
-
+    char buffer[MAX_LENGTH_RES];
+    char res[4];
+    memset(res,0,4);
+    if (readResponse(socketA, buffer, res) != 0)
+    {
+        perror("Error reading response not found");
+        printf("%s",buffer);
+        exit(-1);
+    }
+    if (atoi(res) != 220)
+    {
+        printf("%s",buffer);
+        printf("Error reading response 220 expected and %s found\n", res);
+        exit(-1);
+    }
     return 0;
 }
