@@ -74,8 +74,6 @@ int parseURL(char* inputURL, struct URL_RFC1738 *url)
         strcpy(url->path, ""); 
     }
 
-
-
     return 0;
 }
 void buildURL(char* address, struct URL_RFC1738 *url)
@@ -210,7 +208,7 @@ int authenticate(const int socketfd, const char* user, const char* pass)
     char message[MAX_LENGTH] = {0};
     char response[MAX_LENGTH_RES] = {0};
     int responseCode = 0;
-    snprintf(message, sizeof(message),"USER %s\r\n",user);
+    snprintf(message, MAX_LENGTH,"USER %s\r\n",user);
     if (send(socketfd, message, strlen(message), 0) < 0)
     {
         perror("Error sending USER command");
@@ -230,7 +228,7 @@ int authenticate(const int socketfd, const char* user, const char* pass)
         exit(-1);
     }
 
-    snprintf(message, sizeof(message),"PASS %s\r\n",pass);
+    snprintf(message, MAX_LENGTH,"PASS %s\r\n",pass);
     send(socketfd, message, strlen(message), 0);
     if (readResponse(socketfd, response, &responseCode) != 0)
     {
@@ -244,6 +242,54 @@ int authenticate(const int socketfd, const char* user, const char* pass)
         printf("Error authenticating user 230 expected and %i found\n", responseCode);
         exit(-1);
     }
+    return 0;
+}
+
+int passiveMode(const int socketfd, char *ip, int *port)
+{
+    char response[MAX_LENGTH_RES];
+    int responseCode = 0;
+    send(socketfd, "PASV\r\n" , 6, 0);
+    if (readResponse(socketfd, response, &responseCode) != 0)
+    {
+        printf("%s",response);
+        perror("Error entering PASV mode found no response");
+        exit(-1);
+    }
+    if (responseCode != 227)
+    {
+        printf("%s",response);
+        printf("Error Entering PASV mode 227 expected and %i found\n", responseCode);
+        exit(-1);
+    }
+
+     
+    char ip_port[MAX_LENGTH];
+    getRegexMatch(response, REGEX_GET_IP_PORT, 1, 1, ip_port);
+    printf("ip_port: %s\n",ip_port);
+    int serverIp1, serverIp2, serverIp3, serverIp4; 
+    int serverPort1, serverPort2;
+
+    char* token = strtok(ip_port, ",");
+    serverIp1 = atoi(token);
+
+    token = strtok(NULL, ",");
+    serverIp2 = atoi(token);
+
+    token = strtok(NULL, ",");
+    serverIp3 = atoi(token);
+
+    token = strtok(NULL, ",");
+    serverIp4 = atoi(token);
+
+    token = strtok(NULL, ",");
+    serverPort1 = atoi(token);
+
+    token = strtok(NULL, ",");
+    serverPort2 = atoi(token);
+
+    snprintf(ip, MAX_LENGTH,"%d.%d.%d.%d",serverIp1,serverIp2,serverIp3,serverIp4);
+    *port = 256 * serverPort1 + serverPort2;
     return 0;
 }
 
@@ -275,5 +321,10 @@ int main(int argc, char *argv[])
         perror("Error authenticating\n");
         exit(-1);
     }
+    char ip[MAX_LENGTH] = {0};
+    int port = 0;
+    passiveMode(socketA,ip,&port);
+
+
     return 0;
 }

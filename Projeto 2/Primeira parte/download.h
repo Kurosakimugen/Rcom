@@ -20,8 +20,8 @@
 #define REGEX_FILENAME          "\\/[^\\/ ]+$"
 #define REGEX_PATH              "[^:\\/ ]\\/[^ ]+\\/"           //  "m/path/to/file/""
 #define REGEX_GET_USER_PASSWORD ":\\/\\/[^@/ :]+:[^@:/ ]*@"
-#define REGEX_GET_FTP_RESPONSE "^[1-5][0-9][0-9]"
-
+#define REGEX_GET_FTP_RESPONSE  "^[1-5][0-9][0-9]"
+#define REGEX_GET_IP_PORT            "\\([0-9]{1,3},[0-9]{1,3},[0-9]{1,3},[0-9]{1,3},[0-9]{1,3},[0-9]{1,3}\\)"
 
 typedef enum
 {
