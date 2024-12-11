@@ -12,7 +12,7 @@
 #define MAX_LENGTH_RES  10000
 #define FTP_PORT    21
 
-#define REGEX_BASE_URL_STRUCT   "^[a-zA-Z]+:\\/\\/[^ ]+$"
+#define REGEX_BASE_URL_STRUCT   "^ftp:\\/\\/[^ ]+$"
 #define REGEX_HAS_USER          ":\\/\\/[^@: ]+:[^@ :/]*@"
 #define REGEX_HOST_WITHOUT_USER ":\\/\\/[^ :@\\/]+"
 #define REGEX_HOST_WITH_USER    "@[^\\/ :@]+"

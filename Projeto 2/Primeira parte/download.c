@@ -121,7 +121,7 @@ int createSocket(char* ip, int port)
     return socket_fd;
 }
 
-int readResponse(const int socketfd, char* buffer, char* res)
+int readResponse(const int socketfd, char* buffer, int* res)
 {
     memset(buffer,0,MAX_LENGTH_RES);
     char responsebyte; 
@@ -196,11 +196,55 @@ int readResponse(const int socketfd, char* buffer, char* res)
                 break;
         }
     }
-    if (getRegexMatch(buffer,REGEX_GET_FTP_RESPONSE,0,0,res) != 0)
+    char stringRes[4] = {0}; 
+    if (getRegexMatch(buffer,REGEX_GET_FTP_RESPONSE,0,0,stringRes) != 0)
     {
         return -1;
     }
+    *res = atoi(stringRes);
     return 0;    
+}
+
+int authenticate(const int socketfd, const char* user, const char* pass)
+{
+    char message[MAX_LENGTH] = {0};
+    char response[MAX_LENGTH_RES] = {0};
+    int responseCode = 0;
+    snprintf(message, sizeof(message),"USER %s\r\n",user);
+    if (send(socketfd, message, strlen(message), 0) < 0)
+    {
+        perror("Error sending USER command");
+        return -1;
+    }
+    if (readResponse(socketfd, response, &responseCode) != 0)
+    {
+        printf("%s",message);
+        perror("Error during User readResponse found no response");
+        exit(-1);
+        return -1;
+    }
+    if (responseCode != 331)
+    {
+        printf("%s",response);
+        printf("Error authenticating user 331 expected and %i found\n", responseCode);
+        exit(-1);
+    }
+
+    snprintf(message, sizeof(message),"PASS %s\r\n",pass);
+    send(socketfd, message, strlen(message), 0);
+    if (readResponse(socketfd, response, &responseCode) != 0)
+    {
+        printf("%s",message);
+        perror("Error writing password readResponse found no response");
+        exit(-1);
+    }
+    if (responseCode != 230)
+    {
+        printf("%s",response);
+        printf("Error authenticating user 230 expected and %i found\n", responseCode);
+        exit(-1);
+    }
+    return 0;
 }
 
 int main(int argc, char *argv[])
@@ -213,18 +257,22 @@ int main(int argc, char *argv[])
     buildURL(argv[1], &url);
     int socketA = createSocket(url.ip, FTP_PORT);
     char buffer[MAX_LENGTH_RES];
-    char res[4];
-    memset(res,0,4);
-    if (readResponse(socketA, buffer, res) != 0)
+    int res = 0;
+    if (readResponse(socketA, buffer, &res) != 0)
     {
         perror("Error reading response not found");
         printf("%s",buffer);
         exit(-1);
     }
-    if (atoi(res) != 220)
+    if (res != 220)
     {
         printf("%s",buffer);
-        printf("Error reading response 220 expected and %s found\n", res);
+        printf("Error reading response 220 expected and %d found\n", res);
+        exit(-1);
+    }
+    if (authenticate(socketA,url.user,url.password) != 0)
+    {
+        perror("Error authenticating\n");
         exit(-1);
     }
     return 0;
