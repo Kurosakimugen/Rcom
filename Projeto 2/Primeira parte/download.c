@@ -245,6 +245,28 @@ int authenticate(const int socketfd, const char* user, const char* pass)
     return 0;
 }
 
+int binMode(const int socketfd)
+{
+    char message[MAX_LENGTH] = {0};
+    char response[MAX_LENGTH_RES] = {0};
+    int responseCode = 0;
+    snprintf(message, 9, "TYPE I\r\n");
+    send(socketfd, message, strlen(message), 0);
+    if (readResponse(socketfd, response, &responseCode) != 0)
+    {
+        printf("%s",message);
+        perror("Error Entering Bin mode readResponse found no response");
+        exit(-1);
+    }
+    if (responseCode != 200)
+    {
+        printf("%s",response);
+        printf("Error entering bun mode 200 expected and %i found\n", responseCode);
+        exit(-1);
+    }
+    return 0;
+}
+
 int passiveMode(const int socketfd, char *ip, int *port)
 {
     char response[MAX_LENGTH_RES];
@@ -266,7 +288,6 @@ int passiveMode(const int socketfd, char *ip, int *port)
      
     char ip_port[MAX_LENGTH];
     getRegexMatch(response, REGEX_GET_IP_PORT, 1, 1, ip_port);
-    printf("ip_port: %s\n",ip_port);
     int serverIp1, serverIp2, serverIp3, serverIp4; 
     int serverPort1, serverPort2;
 
@@ -293,6 +314,63 @@ int passiveMode(const int socketfd, char *ip, int *port)
     return 0;
 }
 
+int requestResource(const int socketfd, char* path, char* filename)
+{
+    char message[MAX_LENGTH];
+    snprintf(message, MAX_LENGTH,"RETR %s/%s\r\n",path,filename);
+    send(socketfd, message, strlen(message), 0);
+
+    char response[MAX_LENGTH_RES] = {0};
+    int responseCode = 0;
+    if (readResponse(socketfd, response, &responseCode) != 0)
+    {
+        printf("%s",message);
+        perror("Error writing resource to fetch\n");
+        exit(-1);
+    }
+    if (responseCode != 150)
+    {
+        printf("%s",response);
+        printf("Error requesting resource 230 expected and %i found\n", responseCode);
+        exit(-1);
+    }
+    return 0;
+}
+
+int getResource(const int socketfd1, const int socketfd2, char* filename)
+{
+    FILE *file = fopen(filename,"wb");
+    if (file == NULL)
+    {
+        printf("Error creating local file \n");
+        exit(-1);
+    }
+
+    char buffer[MAX_LENGTH];
+    int readBytes;
+    while (readBytes = recv(socketfd2,buffer, MAX_LENGTH, 0))
+    {
+        if (fwrite(buffer, readBytes, 1, file) < 0 )
+            return -1;
+    }
+    fclose(file);
+    
+    char response[MAX_LENGTH_RES] = {0};
+    int responseCode = 0;
+    if (readResponse(socketfd1, response, &responseCode) != 0)
+    {
+        perror("Error while getting file\n");
+        exit(-1);
+    }
+    if (responseCode != 226)
+    {
+        printf("%s",response);
+        printf("Error getting resource 226 expected and %i found\n", responseCode);
+        exit(-1);
+    }
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     if (argc != 2) {
@@ -301,10 +379,10 @@ int main(int argc, char *argv[])
     }
     struct URL_RFC1738 url;
     buildURL(argv[1], &url);
-    int socketA = createSocket(url.ip, FTP_PORT);
+    int socket1 = createSocket(url.ip, FTP_PORT);
     char buffer[MAX_LENGTH_RES];
     int res = 0;
-    if (readResponse(socketA, buffer, &res) != 0)
+    if (readResponse(socket1, buffer, &res) != 0)
     {
         perror("Error reading response not found");
         printf("%s",buffer);
@@ -316,15 +394,27 @@ int main(int argc, char *argv[])
         printf("Error reading response 220 expected and %d found\n", res);
         exit(-1);
     }
-    if (authenticate(socketA,url.user,url.password) != 0)
+    if (authenticate(socket1,url.user,url.password) != 0)
     {
         perror("Error authenticating\n");
         exit(-1);
     }
     char ip[MAX_LENGTH] = {0};
     int port = 0;
-    passiveMode(socketA,ip,&port);
+    if (binMode(socket1) != 0)
+    {
+        exit(-1);
+    }
+    passiveMode(socket1,ip,&port);
+    int socket2 = createSocket(ip,port);
+    if (socket2 < 0)
+    {
+        perror("Error creating second socket");
+        return -1;
+    }
+    requestResource(socket1, url.path, url.filename);
 
+    getResource(socket1,socket2,url.filename);
 
     return 0;
 }
