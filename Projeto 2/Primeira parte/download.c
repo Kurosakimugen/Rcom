@@ -127,7 +127,7 @@ int readResponse(const int socketfd, char* buffer, int* res)
     int  index = 0;
     readResponseStatus status = START;
     memset(buffer, 0, MAX_LENGTH);
-
+    int readChar = 0;
     while (status != END)
     {
         recv(socketfd, &responsebyte, 1, 0);
@@ -135,13 +135,28 @@ int readResponse(const int socketfd, char* buffer, int* res)
         {
             case START:
                 buffer[index++] = responsebyte;
+                readChar++;
                 if (responsebyte == '-')
                 {
                     status = NEW_LINE;
                 }
                 else if (responsebyte == ' ')
                 {
-                    status = FINAL_LINE;
+                    readChar = 0;
+                    if (readChar == 1)
+                    {
+                        readChar = 0;
+                        status = NEW_LINE;
+                    }
+                    else
+                    {
+                        readChar = 0;
+                        status = FINAL_LINE;
+                    }
+                }
+                else if(responsebyte == '\r')
+                {
+                    status = NEW_LINE_CR;
                 }
                 break;
             case NEW_LINE:
@@ -368,6 +383,26 @@ int getResource(const int socketfd1, const int socketfd2, char* filename)
         printf("Error getting resource 226 expected and %i found\n", responseCode);
         exit(-1);
     }
+    close(socketfd2);
+    return 0;
+}
+
+int closeConection(const int socketfd1,const int socketfd2)
+{
+    char response[MAX_LENGTH];
+    int responseCode = 0;
+    send(socketfd1, "QUIT\r\n", 7, 0);
+
+    if (readResponse(socketfd1,response,&responseCode) != 0)
+    {
+        perror("Error Ending conectrion");
+    }
+    if (responseCode != 221)
+    {
+        return -1;
+    }
+    close(socketfd2);
+    close(socketfd1);
     return 0;
 }
 
@@ -415,6 +450,6 @@ int main(int argc, char *argv[])
     requestResource(socket1, url.path, url.filename);
 
     getResource(socket1,socket2,url.filename);
-
+    close(socket1);
     return 0;
 }
