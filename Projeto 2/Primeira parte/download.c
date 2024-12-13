@@ -176,6 +176,7 @@ int readResponse(const int socketfd, char* buffer, int* res)
                 {
                     status = FINAL_LINE;
                 }
+                break;
             case NEW_LINE:
                 if (responsebyte == '\r')
                 {
@@ -226,6 +227,7 @@ int readResponse(const int socketfd, char* buffer, int* res)
                 break;
         }
     }
+    printf("Response:\t%s\n",buffer);
     char stringRes[4] = {0}; 
     if (getRegexMatch(buffer,REGEX_GET_FTP_RESPONSE,0,0,stringRes) != 0)
     {
@@ -350,6 +352,7 @@ int requestResource(const int socketfd, char* path, char* filename)
 {
     char message[MAX_LENGTH];
     snprintf(message, MAX_LENGTH,"RETR %s/%s\r\n",path,filename);
+    printf("MES %s\n",message);
     send(socketfd, message, strlen(message), 0);
 
     char response[MAX_LENGTH_RES] = {0};
@@ -360,7 +363,7 @@ int requestResource(const int socketfd, char* path, char* filename)
         perror("Error writing resource to fetch\n");
         exit(-1);
     }
-    if (responseCode != 150)
+    if (responseCode != 150 && responseCode != 125 )
     {
         printf("%s",response);
         printf("Error requesting resource 230 expected and %i found\n", responseCode);
@@ -378,9 +381,9 @@ int getResource(const int socketfd1, const int socketfd2, char* filename)
         exit(-1);
     }
 
-    char buffer[MAX_LENGTH_RES];
+    char buffer[MAX_LENGTH];
     int readBytes;
-    while (readBytes = recv(socketfd2,buffer, MAX_LENGTH_RES, 0))
+    while (readBytes = recv(socketfd2,buffer, MAX_LENGTH, 0))
     {
         if (fwrite(buffer, readBytes, 1, file) < 0 )
             return -1;
