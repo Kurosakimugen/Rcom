@@ -27,6 +27,9 @@
 typedef enum
 {
     START,
+    FIRST_NUM,
+    SECOND_NUM,
+    THIRD_NUM,
     NEW_LINE,
     FINAL_LINE,
     NEW_LINE_CR,

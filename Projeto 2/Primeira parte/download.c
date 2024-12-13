@@ -127,7 +127,6 @@ int readResponse(const int socketfd, char* buffer, int* res)
     int  index = 0;
     readResponseStatus status = START;
     memset(buffer, 0, MAX_LENGTH);
-    int readChar = 0;
     while (status != END)
     {
         recv(socketfd, &responsebyte, 1, 0);
@@ -135,30 +134,48 @@ int readResponse(const int socketfd, char* buffer, int* res)
         {
             case START:
                 buffer[index++] = responsebyte;
-                readChar++;
-                if (responsebyte == '-')
+                if (responsebyte >= '0' && responsebyte <= '9')
                 {
-                    status = NEW_LINE;
-                }
-                else if (responsebyte == ' ')
-                {
-                    readChar = 0;
-                    if (readChar == 1)
-                    {
-                        readChar = 0;
-                        status = NEW_LINE;
-                    }
-                    else
-                    {
-                        readChar = 0;
-                        status = FINAL_LINE;
-                    }
+                    status=SECOND_NUM;
                 }
                 else if(responsebyte == '\r')
                 {
                     status = NEW_LINE_CR;
                 }
+                else
+                {
+                    status = NEW_LINE;
+                }
                 break;
+            case SECOND_NUM:
+                buffer[index++] = responsebyte;
+                if (responsebyte >= '0' && responsebyte <= '9')
+                {
+                    status=THIRD_NUM;
+                }
+                else if(responsebyte == '\r')
+                {
+                    status = NEW_LINE_CR;
+                }
+                else
+                {
+                    status = NEW_LINE;
+                }
+                break;
+            case THIRD_NUM:
+                buffer[index++] = responsebyte;
+                if (responsebyte == '-')
+                {
+                    status = NEW_LINE;
+                }
+                else if(responsebyte == '\r')
+                {
+                    status = FINAL_LINE_CR;
+                }
+                else if(responsebyte == ' ')
+                {
+                    status = FINAL_LINE;
+                }
             case NEW_LINE:
                 if (responsebyte == '\r')
                 {
@@ -361,9 +378,9 @@ int getResource(const int socketfd1, const int socketfd2, char* filename)
         exit(-1);
     }
 
-    char buffer[MAX_LENGTH];
+    char buffer[MAX_LENGTH_RES];
     int readBytes;
-    while (readBytes = recv(socketfd2,buffer, MAX_LENGTH, 0))
+    while (readBytes = recv(socketfd2,buffer, MAX_LENGTH_RES, 0))
     {
         if (fwrite(buffer, readBytes, 1, file) < 0 )
             return -1;
